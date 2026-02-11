@@ -313,7 +313,7 @@ class UnionRaidCog(commands.Cog):
 
                     class ReportView(View):
                         def __init__(self, raid_id: int):
-                            super().__init__(timeout=None)
+                            super().__init__(timeout=60 * 60)
                             self.raid_id = raid_id
 
                         @ui.button(label="報告", style=discord.ButtonStyle.primary, custom_id="raid_report_button")
