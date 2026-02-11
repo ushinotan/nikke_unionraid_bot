@@ -102,8 +102,8 @@ class NikkeUnionRaidBot(commands.Bot):
         # resume schedules for pending raid notifications
         try:
             await cog.resume_schedules()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"スケジュール再開中にエラーが発生しました: {e}", exc_info=True)
     
     async def on_ready(self):
         """Botの準備が完了したときに呼ばれる"""
@@ -145,7 +145,9 @@ class UnionRaidCog(commands.Cog):
         now = utcnow_naive()
         async with async_session_factory() as session:
             result = await session.execute(
-                UnionRaid.__table__.select().where(UnionRaid.notify_time != None)
+                UnionRaid.__table__.select().where(
+                    (UnionRaid.notify_time != None) & (UnionRaid.end_time > now)
+                )
             )
             rows = result.fetchall()
             for row in rows:
@@ -276,77 +278,82 @@ class UnionRaidCog(commands.Cog):
             return
 
         async def _task():
-            # compute wait using timestamps to avoid aware/naive subtraction issues
-            if not raid.notify_time:
-                return
-            # convert notify_time to epoch (handle aware or naive)
-            if getattr(raid.notify_time, 'tzinfo', None) is None:
-                notify_ts = raid.notify_time.replace(tzinfo=timezone.utc).timestamp()
-            else:
-                notify_ts = raid.notify_time.timestamp()
-            now_ts = utcnow_aware().timestamp()
-            wait = notify_ts - now_ts
-            if wait > 0:
-                await asyncio.sleep(wait)
             try:
-                channel = self.bot.get_channel(raid.channel_id)
-                if not channel:
-                    channel = await self.bot.fetch_channel(raid.channel_id)
-
-                embed = discord.Embed(title="📣 ユニオンレイド通知", description=f"人間、ユニオンレイドが始まったわ。", color=discord.Color.blue())
-                # ensure correct timestamp (make aware if naive)
-                if getattr(raid.start_time, 'tzinfo', None) is None:
-                    ts_dt = raid.start_time.replace(tzinfo=timezone.utc)
+                # compute wait using timestamps to avoid aware/naive subtraction issues
+                if not raid.notify_time:
+                    return
+                # convert notify_time to epoch (handle aware or naive)
+                if getattr(raid.notify_time, 'tzinfo', None) is None:
+                    notify_ts = raid.notify_time.replace(tzinfo=timezone.utc).timestamp()
                 else:
-                    ts_dt = raid.start_time
-                embed.add_field(name="開始時刻", value=f"<t:{int(ts_dt.timestamp())}:F>")
-                embed.add_field(name="レイドID", value=f"`{raid.id}`")
+                    notify_ts = raid.notify_time.timestamp()
+                now_ts = utcnow_aware().timestamp()
+                wait = notify_ts - now_ts
+                if wait > 0:
+                    await asyncio.sleep(wait)
+                try:
+                    channel = self.bot.get_channel(raid.channel_id)
+                    if not channel:
+                        channel = await self.bot.fetch_channel(raid.channel_id)
 
-                class ReportView(View):
-                    def __init__(self, raid_id: int):
-                        super().__init__(timeout=None)
-                        self.raid_id = raid_id
+                    embed = discord.Embed(title="📣 ユニオンレイド通知", description=f"人間、ユニオンレイドが始まったわ。", color=discord.Color.blue())
+                    # ensure correct timestamp (make aware if naive)
+                    if getattr(raid.start_time, 'tzinfo', None) is None:
+                        ts_dt = raid.start_time.replace(tzinfo=timezone.utc)
+                    else:
+                        ts_dt = raid.start_time
+                    embed.add_field(name="開始時刻", value=f"<t:{int(ts_dt.timestamp())}:F>")
+                    embed.add_field(name="レイドID", value=f"`{raid.id}`")
 
-                    @ui.button(label="報告", style=discord.ButtonStyle.primary, custom_id="raid_report_button")
-                    async def report_button(self, interaction: discord.Interaction, button: Button):
-                        raid_id_ref = self.raid_id
-                        
-                        class DifficultySelect(Select):
-                            def __init__(self):
-                                options = [
-                                    discord.SelectOption(label="ノーマル", value="normal"),
-                                    discord.SelectOption(label="ハード", value="hard")
-                                ]
-                                super().__init__(placeholder="難易度を選択してください", options=options)
+                    class ReportView(View):
+                        def __init__(self, raid_id: int):
+                            super().__init__(timeout=None)
+                            self.raid_id = raid_id
+
+                        @ui.button(label="報告", style=discord.ButtonStyle.primary, custom_id="raid_report_button")
+                        async def report_button(self, interaction: discord.Interaction, button: Button):
+                            raid_id_ref = self.raid_id
                             
-                            async def callback(self, select_interaction: discord.Interaction):
-                                difficulty = self.values[0]
-                                async with async_session_factory() as session:
-                                    q = await session.execute(
-                                        RaidReport.__table__.select().where(
-                                            (RaidReport.raid_id == raid_id_ref) & (RaidReport.user_id == select_interaction.user.id) & (RaidReport.difficulty == difficulty)
+                            class DifficultySelect(Select):
+                                def __init__(self):
+                                    options = [
+                                        discord.SelectOption(label="ノーマル", value="normal"),
+                                        discord.SelectOption(label="ハード", value="hard")
+                                    ]
+                                    super().__init__(placeholder="難易度を選択してください", options=options)
+                                
+                                async def callback(self, select_interaction: discord.Interaction):
+                                    difficulty = self.values[0]
+                                    async with async_session_factory() as session:
+                                        q = await session.execute(
+                                            RaidReport.__table__.select().where(
+                                                (RaidReport.raid_id == raid_id_ref) & (RaidReport.user_id == select_interaction.user.id) & (RaidReport.difficulty == difficulty)
+                                            )
                                         )
-                                    )
-                                    existing = q.first()
-                                    if existing:
-                                        existing_id = existing._mapping.get('id') if hasattr(existing, '_mapping') else existing.id
-                                        await session.execute(
-                                            RaidReport.__table__.update().where(RaidReport.id == existing_id).values(is_3t=1, reported_at=utcnow_naive(), username=select_interaction.user.display_name)
-                                        )
-                                    else:
-                                        report = RaidReport(raid_id=raid_id_ref, user_id=select_interaction.user.id, username=select_interaction.user.display_name, difficulty=difficulty, is_3t=1)
-                                        session.add(report)
-                                    await session.commit()
-                                await select_interaction.response.send_message('報告を受け付けました。', ephemeral=True)
-                        
-                        view = View()
-                        view.add_item(DifficultySelect())
-                        await interaction.response.send_message('難易度を選択してください:', view=view, ephemeral=True)
+                                        existing = q.first()
+                                        if existing:
+                                            existing_id = existing._mapping.get('id') if hasattr(existing, '_mapping') else existing.id
+                                            await session.execute(
+                                                RaidReport.__table__.update().where(RaidReport.id == existing_id).values(is_3t=1, reported_at=utcnow_naive(), username=select_interaction.user.display_name)
+                                            )
+                                        else:
+                                            report = RaidReport(raid_id=raid_id_ref, user_id=select_interaction.user.id, username=select_interaction.user.display_name, difficulty=difficulty, is_3t=1)
+                                            session.add(report)
+                                        await session.commit()
+                                    await select_interaction.response.send_message('報告を受け付けました。', ephemeral=True)
+                            
+                            view = View()
+                            view.add_item(DifficultySelect())
+                            await interaction.response.send_message('難易度を選択してください:', view=view, ephemeral=True)
 
-                view = ReportView(raid_id=raid.id)
-                await channel.send(embed=embed, view=view)
-            except Exception as e:
-                logger.error(f"通知送信中にエラー: {e}")
+                    view = ReportView(raid_id=raid.id)
+                    await channel.send(embed=embed, view=view)
+                except Exception as e:
+                    logger.error(f"通知送信中にエラー: {e}")
+            finally:
+                # Task completion時に必ず削除する
+                if guild_id in self._scheduled_tasks:
+                    self._scheduled_tasks.pop(guild_id, None)
 
         task = asyncio.create_task(_task())
         self._scheduled_tasks[guild_id] = task
@@ -386,9 +393,9 @@ class UnionRaidCog(commands.Cog):
                 embed.add_field(name="ノーマル 3凸", value=("\n".join(normal_users) if normal_users else "なし"), inline=False)
                 embed.add_field(name="ハード 3凸", value=("\n".join(hard_users) if hard_users else "なし"), inline=False)
 
-                # 終了処理: end_time を現在にセット
+                # 終了処理: end_time を現在にセット、notify_time をクリア
                 await session.execute(
-                    UnionRaid.__table__.update().where(UnionRaid.id == raid_id).values(end_time=now)
+                    UnionRaid.__table__.update().where(UnionRaid.id == raid_id).values(end_time=now, notify_time=None)
                 )
                 await session.commit()
 
