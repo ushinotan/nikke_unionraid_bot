@@ -1,13 +1,10 @@
-import os
 import logging
 import asyncio
 from datetime import datetime, timedelta
-from typing import Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
-from sqlalchemy import select, delete, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete
 from database import async_session_factory, Base
 from sqlalchemy import Column, BigInteger, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
