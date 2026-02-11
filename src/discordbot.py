@@ -6,12 +6,11 @@ from discord import app_commands
 from discord.ext import commands
 from discord import ui
 from discord.ui import Modal, TextInput, View, Select, Button
-from typing import Optional, Dict
+from typing import Dict
 from sqlalchemy import delete
 from database import async_session_factory, Base
 from sqlalchemy import Column, BigInteger, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = logging.getLogger(__name__)
