@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS raid_reports (
     username VARCHAR(255) NOT NULL,
     difficulty VARCHAR(32) NOT NULL,
     is_3t INTEGER DEFAULT 0,
-    reported_at TIMESTAMPTZ DEFAULT now()
+    reported_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(raid_id, user_id, difficulty)
 );
 
 CREATE INDEX idx_guild_id ON union_raids(guild_id);
