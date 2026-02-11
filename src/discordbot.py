@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 import discord
@@ -67,8 +68,12 @@ class NikkeUnionRaidBot(commands.Bot):
         
         # Discordとコマンドを同期
         logger.info("コマンドを同期しています...")
-        await self.tree.sync()
-        logger.info("コマンドの同期が完了しました")
+        try:
+            # タイムアウト設定（20秒）
+            await asyncio.wait_for(self.tree.sync(), timeout=20.0)
+            logger.info("コマンドの同期が完了しました")
+        except Exception as e:
+            logger.warning(f"コマンド同期中にエラーが発生しました: {e}。Bot は継続して起動します。")
     
     async def on_ready(self):
         """Botの準備が完了したときに呼ばれる"""
