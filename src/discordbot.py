@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import os
 from datetime import datetime, timedelta, timezone
 import discord
 from discord import app_commands
@@ -15,6 +16,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = logging.getLogger(__name__)
 
+# デフォルトタイムゾーン設定（環境変数 DEFAULT_TIMEZONE で変更可能、デフォルト: JST）
+DEFAULT_TIMEZONE_OFFSET = int(os.getenv('DEFAULT_TIMEZONE_HOURS', '9'))
+DEFAULT_TIMEZONE = timezone(timedelta(hours=DEFAULT_TIMEZONE_OFFSET))
+
 # ヘルパー: タイムゾーン情報付きの現在UTCと、DB保存用のナイーブUTCを返す
 def utcnow_aware() -> datetime:
     return datetime.now(timezone.utc)
@@ -22,12 +27,16 @@ def utcnow_aware() -> datetime:
 def utcnow_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+def localnow_aware() -> datetime:
+    """デフォルトタイムゾーンでの現在時刻（aware）"""
+    return datetime.now(DEFAULT_TIMEZONE)
+
 # データベースモデル
 class Guild(Base):
     __tablename__ = 'guilds'
     
     guild_id = Column(BigInteger, primary_key=True)
-    created_at = Column(DateTime, default=lambda: utcnow_naive())
+    created_at = Column(DateTime(timezone=True), default=utcnow_aware)
     
     raids = relationship("UnionRaid", back_populates="guild", cascade="all, delete-orphan")
 
@@ -37,11 +46,11 @@ class UnionRaid(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     guild_id = Column(BigInteger, ForeignKey('guilds.guild_id', ondelete='CASCADE'))
     raid_name = Column(String(255), nullable=False)
-    start_time = Column(DateTime, nullable=False)
-    end_time = Column(DateTime, nullable=False)
-    notify_time = Column(DateTime, nullable=True)
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=False)
+    notify_time = Column(DateTime(timezone=True), nullable=True)
     channel_id = Column(BigInteger, nullable=True)
-    created_at = Column(DateTime, default=lambda: utcnow_naive())
+    created_at = Column(DateTime(timezone=True), default=utcnow_aware)
     
     guild = relationship("Guild", back_populates="raids")
     participants = relationship("RaidParticipant", back_populates="raid", cascade="all, delete-orphan")
@@ -54,7 +63,7 @@ class RaidParticipant(Base):
     user_id = Column(BigInteger, nullable=False)
     username = Column(String(255), nullable=False)
     score = Column(Integer, default=0)
-    joined_at = Column(DateTime, default=lambda: utcnow_naive())
+    joined_at = Column(DateTime(timezone=True), default=utcnow_aware)
     
     raid = relationship("UnionRaid", back_populates="participants")
 
@@ -67,7 +76,7 @@ class RaidReport(Base):
     username = Column(String(255), nullable=False)
     difficulty = Column(String(32), nullable=False)  # 'normal' or 'hard'
     is_3t = Column(Integer, default=0)  # 1 = true, 0 = false
-    reported_at = Column(DateTime, default=lambda: utcnow_naive())
+    reported_at = Column(DateTime(timezone=True), default=utcnow_aware)
 
     raid = relationship("UnionRaid")
 
@@ -141,7 +150,7 @@ class UnionRaidCog(commands.Cog):
 
     async def resume_schedules(self):
         """起動時にDBから残っているレイドを読み、通知をスケジュールする"""
-        now = utcnow_naive()
+        now = utcnow_aware()
         async with async_session_factory() as session:
             result = await session.execute(
                 UnionRaid.__table__.select().where(
@@ -178,20 +187,18 @@ class UnionRaidCog(commands.Cog):
         class RaidStartModal(Modal, title="レイド開始設定"):
             def __init__(self):
                 super().__init__()
-                jst = timezone(timedelta(hours=9))
-                now_jst = datetime.now(jst)
-                default_time = now_jst.strftime("%Y-%m-%d %H:%M")
-                self.開始時刻 = TextInput(label="開始時刻 (YYYY-MM-DD HH:MM JST)", default=default_time, required=True)
+                now_local = localnow_aware()
+                default_time = now_local.strftime("%Y-%m-%d %H:%M")
+                self.開始時刻 = TextInput(label=f"開始時刻 (YYYY-MM-DD HH:MM {DEFAULT_TIMEZONE})", default=default_time, required=True)
                 self.add_item(self.開始時刻)
 
             async def on_submit(self, modal_interaction: discord.Interaction):
                 await modal_interaction.response.defer()
                 try:
                     start_text = self.開始時刻.value.strip()
-                    # parse as JST and convert to UTC for display/scheduling
-                    jst = timezone(timedelta(hours=9))
-                    start_time_jst = datetime.strptime(start_text, "%Y-%m-%d %H:%M").replace(tzinfo=jst)
-                    start_time_aware = start_time_jst.astimezone(timezone.utc)
+                    # parse as DEFAULT_TIMEZONE and convert to UTC for display/scheduling
+                    start_time_local = datetime.strptime(start_text, "%Y-%m-%d %H:%M").replace(tzinfo=DEFAULT_TIMEZONE)
+                    start_time_aware = start_time_local.astimezone(timezone.utc)
                     end_time_aware = start_time_aware + timedelta(hours=期間時間)
                     # store naive UTC datetimes in DB to match existing schema
                     start_time = start_time_aware.replace(tzinfo=None)
@@ -204,13 +211,13 @@ class UnionRaidCog(commands.Cog):
                             # upsert: race-safe insert (ON CONFLICT DO NOTHING)
                             stmt = pg_insert(Guild.__table__).values(
                                 guild_id=interaction.guild_id,
-                                created_at=utcnow_naive()
+                                created_at=utcnow_aware()
                             ).on_conflict_do_nothing(index_elements=['guild_id'])
                             await session.execute(stmt)
                             # ensure we have the guild object afterwards
                             guild = await session.get(Guild, interaction.guild_id)
 
-                        now = utcnow_naive()
+                        now = utcnow_aware()
                         q = await session.execute(
                             UnionRaid.__table__.select().where(
                                 (UnionRaid.guild_id == interaction.guild_id) & (UnionRaid.end_time > now)
@@ -333,7 +340,7 @@ class UnionRaidCog(commands.Cog):
                                         if existing:
                                             existing_id = existing._mapping.get('id') if hasattr(existing, '_mapping') else existing.id
                                             await session.execute(
-                                                RaidReport.__table__.update().where(RaidReport.id == existing_id).values(is_3t=1, reported_at=utcnow_naive(), username=select_interaction.user.display_name)
+                                                RaidReport.__table__.update().where(RaidReport.id == existing_id).values(is_3t=1, reported_at=utcnow_aware(), username=select_interaction.user.display_name)
                                             )
                                         else:
                                             report = RaidReport(raid_id=raid_id_ref, user_id=select_interaction.user.id, username=select_interaction.user.display_name, difficulty=difficulty, is_3t=1)
@@ -361,7 +368,7 @@ class UnionRaidCog(commands.Cog):
     async def raid_end(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
         try:
-            now = utcnow_naive()
+            now = utcnow_aware()
             async with async_session_factory() as session:
                 q = await session.execute(
                     UnionRaid.__table__.select().where((UnionRaid.guild_id == interaction.guild_id) & (UnionRaid.end_time > now))
