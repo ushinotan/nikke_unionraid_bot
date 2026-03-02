@@ -1,6 +1,5 @@
 from sqlalchemy import Column, BigInteger, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from database import Base
 
 class Guild(Base):
