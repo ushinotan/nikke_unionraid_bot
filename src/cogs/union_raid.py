@@ -141,16 +141,16 @@ class UnionRaidCog(commands.Cog):
                                 r.channel_id = raid.channel_id
                                 cog._schedule_notification_task(r)
                         except Exception:
-                            logger.exception(f"レイド通知スケジュール中にエラー: {e}")
+                            logger.exception(f"レイド通知スケジュール中にエラー")
                             pass
-                except Exception as e:
-                    logger.exception(f"レイド作成モーダル処理中にエラー: {e}")
+                except Exception:
+                    logger.exception(f"レイド作成モーダル処理中にエラー")
                     try:
                         await modal_interaction.followup.send(f"入力の解析に失敗しました: {e}", ephemeral=True)
                     except discord.errors.NotFound:
                         logger.exception(f"モーダル例外メッセージ送信失敗（Unknown interaction）")
-                    except Exception as se:
-                        logger.error(f"例外送信時にさらにエラー: {se}")
+                    except Exception:
+                        logger.exception(f"例外送信時にさらにエラー")
 
         modal = RaidStartModal()
         await interaction.response.send_modal(modal)
