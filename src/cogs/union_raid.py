@@ -49,6 +49,7 @@ class UnionRaidCog(commands.Cog):
                     self._schedule_notification_task(r)
     
     @app_commands.command(name="レイド作成", description="新しいユニオンレイドを作成します")
+    @app_commands.guild_only()
     @app_commands.describe(
         期間時間="レイドの期間（時間単位、デフォルト: 24時間）"
     )
@@ -245,6 +246,7 @@ class UnionRaidCog(commands.Cog):
         self._scheduled_tasks[guild_id] = task
 
     @app_commands.command(name="レイド終了", description="進行中のレイドを終了し、3凸報告を集計します")
+    @app_commands.guild_only()
     async def raid_end(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
         try:
