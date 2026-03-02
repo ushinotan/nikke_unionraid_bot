@@ -1,6 +1,5 @@
 import logging
 import asyncio
-import os
 from datetime import datetime, timedelta, timezone
 import discord
 from discord import app_commands
@@ -8,9 +7,8 @@ from discord.ext import commands
 from discord import ui
 from discord.ui import Modal, TextInput, View, Select, Button
 from typing import Dict
-from sqlalchemy import delete
 from database import async_session_factory
-from models import Guild, UnionRaid, RaidParticipant, RaidReport
+from models import Guild, UnionRaid, RaidReport
 from utils import utcnow_aware, localnow_aware, DEFAULT_TIMEZONE
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
