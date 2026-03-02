@@ -312,8 +312,8 @@ class UnionRaidCog(commands.Cog):
                     embed.add_field(name="レイドID", value=f"`{raid.id}`")
 
                     class ReportView(View):
-                        def __init__(self, raid_id: int):
-                            super().__init__(timeout=60 * 60)
+                        def __init__(self, raid_id: int, timeout_seconds: float):
+                            super().__init__(timeout=timeout_seconds)
                             self.raid_id = raid_id
 
                         @ui.button(label="報告", style=discord.ButtonStyle.primary, custom_id="raid_report_button")
@@ -352,7 +352,8 @@ class UnionRaidCog(commands.Cog):
                             view.add_item(DifficultySelect())
                             await interaction.response.send_message('難易度を選択してください:', view=view, ephemeral=True)
 
-                    view = ReportView(raid_id=raid.id)
+                    timeout_seconds = (raid.end_time - utcnow_aware()).total_seconds()
+                    view = ReportView(raid_id=raid.id, timeout_seconds=timeout_seconds)
                     await channel.send(embed=embed, view=view)
                 except Exception as e:
                     logger.error(f"通知送信中にエラー: {e}")
