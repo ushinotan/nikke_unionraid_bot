@@ -44,6 +44,9 @@ class UnionRaidCog(commands.Cog):
                 r.channel_id = data.get('channel_id')
                 if r.notify_time and r.notify_time > now:
                     self._schedule_notification_task(r)
+                elif r.notify_time and r.notify_time <= now:
+                    r.notify_time = now
+                    self._schedule_notification_task(r)
     
     @app_commands.command(name="レイド作成", description="新しいユニオンレイドを作成します")
     @app_commands.describe(
