@@ -25,7 +25,7 @@ class UnionRaidCog(commands.Cog):
         async with async_session_factory() as session:
             result = await session.execute(
                 UnionRaid.__table__.select().where(
-                    (UnionRaid.notify_time != None) & (UnionRaid.end_time > now)
+                    UnionRaid.notify_time.isnot(None) & (UnionRaid.end_time > now)
                 )
             )
             rows = result.fetchall()
