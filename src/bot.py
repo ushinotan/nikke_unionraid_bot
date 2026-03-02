@@ -1,10 +1,8 @@
 import logging
 import asyncio
-import os
 import discord
 from discord.ext import commands
-from utils import utcnow_aware
-from database import async_session_factory, Base
+from database import async_session_factory
 from sqlalchemy import delete
 from models import Guild
 from cogs.union_raid import UnionRaidCog
