@@ -37,6 +37,6 @@ CREATE TABLE IF NOT EXISTS raid_reports (
     UNIQUE(raid_id, user_id, difficulty)
 );
 
-CREATE INDEX idx_guild_id ON union_raids(guild_id);
-CREATE INDEX idx_raid_id ON raid_participants(raid_id);
-CREATE INDEX idx_user_id ON raid_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_guild_id ON union_raids(guild_id);
+CREATE INDEX IF NOT EXISTS idx_raid_id ON raid_participants(raid_id);
+CREATE INDEX IF NOT EXISTS idx_user_id ON raid_participants(user_id);
