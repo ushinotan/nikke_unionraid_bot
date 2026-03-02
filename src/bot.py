@@ -1,11 +1,12 @@
 import logging
 import asyncio
 import discord
+from cogs.union_raid import UnionRaidCog
 from discord.ext import commands
 from database import async_session_factory
-from sqlalchemy import delete
 from models import Guild
-from cogs.union_raid import UnionRaidCog
+from sqlalchemy import delete
+from utils import utcnow_aware
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class NikkeUnionRaidBot(commands.Bot):
         
         # データベースにサーバーを登録
         async with async_session_factory() as session:
-            session.add(Guild(guild_id=guild.id))
+            session.add(Guild(guild_id=guild.id, created_at=utcnow_aware()))
             await session.commit()
     
     async def on_guild_remove(self, guild: discord.Guild):
