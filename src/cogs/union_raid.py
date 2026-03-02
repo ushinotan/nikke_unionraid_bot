@@ -141,6 +141,7 @@ class UnionRaidCog(commands.Cog):
                                 r.channel_id = raid.channel_id
                                 cog._schedule_notification_task(r)
                         except Exception:
+                            logger.exception(f"レイド通知スケジュール中にエラー: {e}")
                             pass
                 except Exception as e:
                     logger.exception(f"レイド作成モーダル処理中にエラー: {e}")
