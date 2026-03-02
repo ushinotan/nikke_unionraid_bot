@@ -352,6 +352,11 @@ class UnionRaidCog(commands.Cog):
                     timeout_seconds = (raid.end_time - utcnow_aware()).total_seconds()
                     view = ReportView(raid_id=raid.id, timeout_seconds=timeout_seconds)
                     await channel.send(embed=embed, view=view)
+                    async with async_session_factory() as session:
+                        await session.execute(
+                            UnionRaid.__table__.update().where(UnionRaid.id == raid.id).values(notify_time=None)
+                        )
+                        await session.commit()
                 except Exception as e:
                     logger.error(f"通知送信中にエラー: {e}")
             finally:
