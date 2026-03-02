@@ -59,6 +59,10 @@ class UnionRaidCog(commands.Cog):
         期間時間: int = 24
     ):
         """レイド作成: モーダルで開始時刻を受け取る（通知は開始時刻と同じ）"""
+        if 期間時間 < 1:
+            await interaction.response.send_message("レイドの期間は1時間以上で指定してください。", ephemeral=True)
+            return
+
         class RaidStartModal(Modal, title="レイド開始設定"):
             def __init__(self):
                 super().__init__()
