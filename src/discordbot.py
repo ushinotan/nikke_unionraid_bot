@@ -24,9 +24,6 @@ DEFAULT_TIMEZONE = timezone(timedelta(hours=DEFAULT_TIMEZONE_OFFSET))
 def utcnow_aware() -> datetime:
     return datetime.now(timezone.utc)
 
-def utcnow_naive() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
 def localnow_aware() -> datetime:
     """デフォルトタイムゾーンでの現在時刻（aware）"""
     return datetime.now(DEFAULT_TIMEZONE)
