@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 from dotenv import load_dotenv
-from discordbot import NikkeUnionRaidBot
+from bot import NikkeUnionRaidBot
 from database import init_db
 
 # Load environment variables

@@ -9,139 +9,15 @@ from discord import ui
 from discord.ui import Modal, TextInput, View, Select, Button
 from typing import Dict
 from sqlalchemy import delete
-from database import async_session_factory, Base
-from sqlalchemy import Column, BigInteger, Integer, String, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from database import async_session_factory
+from models import Guild, UnionRaid, RaidParticipant, RaidReport
+from utils import utcnow_aware, localnow_aware, DEFAULT_TIMEZONE
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = logging.getLogger(__name__)
 
-# デフォルトタイムゾーン設定（環境変数 DEFAULT_TIMEZONE で変更可能、デフォルト: JST）
-DEFAULT_TIMEZONE_OFFSET = int(os.getenv('DEFAULT_TIMEZONE_HOURS', '9'))
-DEFAULT_TIMEZONE = timezone(timedelta(hours=DEFAULT_TIMEZONE_OFFSET))
-
-# ヘルパー: タイムゾーン情報付きの現在UTCと、DB保存用のナイーブUTCを返す
-def utcnow_aware() -> datetime:
-    return datetime.now(timezone.utc)
-
-def localnow_aware() -> datetime:
-    """デフォルトタイムゾーンでの現在時刻（aware）"""
-    return datetime.now(DEFAULT_TIMEZONE)
-
-# データベースモデル
-class Guild(Base):
-    __tablename__ = 'guilds'
-    
-    guild_id = Column(BigInteger, primary_key=True)
-    created_at = Column(DateTime(timezone=True), default=utcnow_aware)
-    
-    raids = relationship("UnionRaid", back_populates="guild", cascade="all, delete-orphan")
-
-class UnionRaid(Base):
-    __tablename__ = 'union_raids'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    guild_id = Column(BigInteger, ForeignKey('guilds.guild_id', ondelete='CASCADE'))
-    raid_name = Column(String(255), nullable=False)
-    start_time = Column(DateTime(timezone=True), nullable=False)
-    end_time = Column(DateTime(timezone=True), nullable=False)
-    notify_time = Column(DateTime(timezone=True), nullable=True)
-    channel_id = Column(BigInteger, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=utcnow_aware)
-    
-    guild = relationship("Guild", back_populates="raids")
-    participants = relationship("RaidParticipant", back_populates="raid", cascade="all, delete-orphan")
-
-class RaidParticipant(Base):
-    __tablename__ = 'raid_participants'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    raid_id = Column(Integer, ForeignKey('union_raids.id', ondelete='CASCADE'))
-    user_id = Column(BigInteger, nullable=False)
-    username = Column(String(255), nullable=False)
-    score = Column(Integer, default=0)
-    joined_at = Column(DateTime(timezone=True), default=utcnow_aware)
-    
-    raid = relationship("UnionRaid", back_populates="participants")
-
-class RaidReport(Base):
-    __tablename__ = 'raid_reports'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    raid_id = Column(Integer, ForeignKey('union_raids.id', ondelete='CASCADE'))
-    user_id = Column(BigInteger, nullable=False)
-    username = Column(String(255), nullable=False)
-    difficulty = Column(String(32), nullable=False)  # 'normal' or 'hard'
-    is_3t = Column(Integer, default=0)  # 1 = true, 0 = false
-    reported_at = Column(DateTime(timezone=True), default=utcnow_aware)
-
-    raid = relationship("UnionRaid")
-
-class NikkeUnionRaidBot(commands.Bot):
-    def __init__(self):
-        intents = discord.Intents.default()
-        intents.message_content = True
-        intents.guilds = True
-        intents.members = True
-        
-        super().__init__(
-            command_prefix="!",
-            intents=intents,
-            help_command=None
-        )
-    
-    async def setup_hook(self):
-        """Botの起動時に呼ばれる"""
-        # コマンドを登録
-        cog = UnionRaidCog(self)
-        await self.add_cog(cog)
-        
-        # Discordとコマンドを同期
-        logger.info("コマンドを同期しています...")
-        try:
-            # タイムアウト設定（20秒）
-            await asyncio.wait_for(self.tree.sync(), timeout=20.0)
-            logger.info("コマンドの同期が完了しました")
-        except Exception as e:
-            logger.warning(f"コマンド同期中にエラーが発生しました: {e}。Bot は継続して起動します。")
-        # resume schedules for pending raid notifications
-        try:
-            await cog.resume_schedules()
-        except Exception as e:
-            logger.error(f"スケジュール再開中にエラーが発生しました: {e}", exc_info=True)
-    
-    async def on_ready(self):
-        """Botの準備が完了したときに呼ばれる"""
-        logger.info(f'{self.user} (ID: {self.user.id}) としてログインしました')
-        logger.info(f'{len(self.guilds)}個のサーバーに接続しています')
-        
-        # Botのステータスを設定
-        await self.change_presence(
-            activity=discord.Game(name="NIKKE ユニオンレイド管理")
-        )
-    
-    async def on_guild_join(self, guild: discord.Guild):
-        """Botがサーバーに参加したときに呼ばれる"""
-        logger.info(f'サーバーに参加しました: {guild.name} (ID: {guild.id})')
-        
-        # データベースにサーバーを登録
-        async with async_session_factory() as session:
-            session.add(Guild(guild_id=guild.id))
-            await session.commit()
-    
-    async def on_guild_remove(self, guild: discord.Guild):
-        """Botがサーバーから退出したときに呼ばれる"""
-        logger.info(f'サーバーから退出しました: {guild.name} (ID: {guild.id})')
-        
-        # データベースからサーバーを削除
-        async with async_session_factory() as session:
-            await session.execute(
-                delete(Guild).where(Guild.guild_id == guild.id)
-            )
-            await session.commit()
-
 class UnionRaidCog(commands.Cog):
-    def __init__(self, bot: NikkeUnionRaidBot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._scheduled_tasks: Dict[int, asyncio.Task] = {}
 
@@ -419,5 +295,5 @@ class UnionRaidCog(commands.Cog):
             logger.error(f"レイド終了時にエラー: {e}")
             await interaction.followup.send(f"エラーが発生しました: {e}", ephemeral=True)
 
-async def setup(bot: NikkeUnionRaidBot):
+async def setup(bot):
     await bot.add_cog(UnionRaidCog(bot))
