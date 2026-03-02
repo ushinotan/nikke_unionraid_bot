@@ -93,8 +93,6 @@ class UnionRaidCog(commands.Cog):
                                 created_at=utcnow_aware()
                             ).on_conflict_do_nothing(index_elements=['guild_id'])
                             await session.execute(stmt)
-                            # ensure we have the guild object afterwards
-                            guild = await session.get(Guild, interaction.guild_id)
 
                         now = utcnow_aware()
                         q = await session.execute(
