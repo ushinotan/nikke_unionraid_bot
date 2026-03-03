@@ -34,42 +34,46 @@ class ReportView(View):
         # embed から raid_id を取得
         embed = interaction.message.embeds[0]
         raid_id = int(embed.fields[1].value.strip('`'))
-        # Modal を開く
-        modal = ReportModal(raid_id)
-        await interaction.response.send_modal(modal)
+        view = DifficultySelectView(raid_id)
+        await interaction.response.send_message('難易度を選択してください:', view=view, ephemeral=True)
 
-class ReportModal(Modal):
+
+class DifficultySelect(Select):
     def __init__(self, raid_id: int):
-        super().__init__(title="レイド報告")
         self.raid_id = raid_id
-        self.difficulty = Select(
+        super().__init__(
             placeholder="難易度を選択してください",
             options=[
                 discord.SelectOption(label="ノーマル", value="normal"),
-                discord.SelectOption(label="ハード", value="hard")
+                discord.SelectOption(label="ハード", value="hard"),
             ]
         )
-        self.add_item(self.difficulty)
 
-    async def on_submit(self, modal_interaction: discord.Interaction):
-        difficulty = self.difficulty.values[0]
+    async def callback(self, interaction: discord.Interaction):
+        difficulty = self.values[0]
         async with async_session_factory() as session:
             q = await session.execute(
                 RaidReport.__table__.select().where(
-                    (RaidReport.raid_id == self.raid_id) & (RaidReport.user_id == modal_interaction.user.id) & (RaidReport.difficulty == difficulty)
+                    (RaidReport.raid_id == self.raid_id) & (RaidReport.user_id == interaction.user.id) & (RaidReport.difficulty == difficulty)
                 )
             )
             existing = q.first()
             if existing:
                 existing_id = existing._mapping.get('id') if hasattr(existing, '_mapping') else existing.id
                 await session.execute(
-                    RaidReport.__table__.update().where(RaidReport.id == existing_id).values(is_3t=1, reported_at=utcnow_aware(), username=modal_interaction.user.display_name)
+                    RaidReport.__table__.update().where(RaidReport.id == existing_id).values(is_3t=1, reported_at=utcnow_aware(), username=interaction.user.display_name)
                 )
             else:
-                report = RaidReport(raid_id=self.raid_id, user_id=modal_interaction.user.id, username=modal_interaction.user.display_name, difficulty=difficulty, is_3t=1)
+                report = RaidReport(raid_id=self.raid_id, user_id=interaction.user.id, username=interaction.user.display_name, difficulty=difficulty, is_3t=1)
                 session.add(report)
             await session.commit()
-        await modal_interaction.response.send_message('報告を受け付けました。', ephemeral=True)
+        await interaction.response.send_message('報告を受け付けました。', ephemeral=True)
+
+
+class DifficultySelectView(View):
+    def __init__(self, raid_id: int):
+        super().__init__(timeout=60)
+        self.add_item(DifficultySelect(raid_id))
 
 class UnionRaidCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
