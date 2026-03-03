@@ -9,7 +9,7 @@ from discord.ui import Modal, TextInput, View, Select, Button
 from typing import Dict
 from database import async_session_factory
 from models import Guild, UnionRaid, RaidReport
-from utils import utcnow_aware, localnow_aware, DEFAULT_TIMEZONE
+from utils import utcnow_aware, localnow_aware, DEFAULT_TIMEZONE, ensure_utc_aware
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = logging.getLogger(__name__)
@@ -85,9 +85,9 @@ class UnionRaidCog(commands.Cog):
                 r.id = data.get('id')
                 r.guild_id = data.get('guild_id')
                 r.raid_name = data.get('raid_name')
-                r.start_time = data.get('start_time')
-                r.end_time = data.get('end_time')
-                r.notify_time = data.get('notify_time')
+                r.start_time = ensure_utc_aware(data.get('start_time'))
+                r.end_time = ensure_utc_aware(data.get('end_time'))
+                r.notify_time = ensure_utc_aware(data.get('notify_time')) if data.get('notify_time') else None
                 r.channel_id = data.get('channel_id')
                 if r.notify_time and r.notify_time > now:
                     self._schedule_notification_task(r)
@@ -126,9 +126,9 @@ class UnionRaidCog(commands.Cog):
                     start_time_local = datetime.strptime(start_text, "%Y-%m-%d %H:%M").replace(tzinfo=DEFAULT_TIMEZONE)
                     start_time_aware = start_time_local.astimezone(timezone.utc)
                     end_time_aware = start_time_aware + timedelta(hours=期間時間)
-                    # store naive UTC datetimes in DB to match existing schema
-                    start_time = start_time_aware.replace(tzinfo=None)
-                    end_time = end_time_aware.replace(tzinfo=None)
+                    # store aware UTC datetimes in DB
+                    start_time = start_time_aware
+                    end_time = end_time_aware
                     notify_time = start_time
 
                     async with async_session_factory() as session:

@@ -12,3 +12,10 @@ def utcnow_aware() -> datetime:
 def localnow_aware() -> datetime:
     """デフォルトタイムゾーンでの現在時刻（aware）"""
     return datetime.now(DEFAULT_TIMEZONE)
+
+def ensure_utc_aware(dt: datetime) -> datetime:
+    """datetime を UTC aware に統一する"""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    else:
+        return dt.astimezone(timezone.utc)
