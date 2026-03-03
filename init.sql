@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS union_raids (
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ NOT NULL,
     notify_time TIMESTAMPTZ,
-    channel_id BIGINT,
+    channel_id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
