@@ -1,18 +1,29 @@
 import logging
 import asyncio
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import discord
 from discord import app_commands
 from discord.ext import commands
 from discord import ui
 from discord.ui import Modal, TextInput, View, Select, Button
-from typing import Dict
+from typing import Dict, Optional
 from database import async_session_factory
 from models import Guild, UnionRaid, RaidReport
 from utils import utcnow_aware, localnow_aware, DEFAULT_TIMEZONE, ensure_utc_aware
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class RaidInfo:
+    id: int
+    guild_id: int
+    raid_name: str
+    start_time: datetime
+    end_time: datetime
+    notify_time: Optional[datetime]
+    channel_id: int
 
 class ReportView(View):
     def __init__(self):
@@ -79,20 +90,27 @@ class UnionRaidCog(commands.Cog):
             for row in rows:
                 # row is a SQLAlchemy RowMapping
                 data = dict(row._mapping)
-                # Build a lightweight raid-like object
-                class _R: pass
-                r = _R()
-                r.id = data.get('id')
-                r.guild_id = data.get('guild_id')
-                r.raid_name = data.get('raid_name')
-                r.start_time = ensure_utc_aware(data.get('start_time'))
-                r.end_time = ensure_utc_aware(data.get('end_time'))
-                r.notify_time = ensure_utc_aware(data.get('notify_time')) if data.get('notify_time') else None
-                r.channel_id = data.get('channel_id')
+                r = RaidInfo(
+                    id=data.get('id'),
+                    guild_id=data.get('guild_id'),
+                    raid_name=data.get('raid_name'),
+                    start_time=ensure_utc_aware(data.get('start_time')),
+                    end_time=ensure_utc_aware(data.get('end_time')),
+                    notify_time=ensure_utc_aware(data.get('notify_time')) if data.get('notify_time') else None,
+                    channel_id=data.get('channel_id'),
+                )
                 if r.notify_time and r.notify_time > now:
                     self._schedule_notification_task(r)
                 elif r.notify_time and r.notify_time <= now:
-                    r.notify_time = now
+                    r = RaidInfo(
+                        id=r.id,
+                        guild_id=r.guild_id,
+                        raid_name=r.raid_name,
+                        start_time=r.start_time,
+                        end_time=r.end_time,
+                        notify_time=now,
+                        channel_id=r.channel_id,
+                    )
                     self._schedule_notification_task(r)
     
     @app_commands.command(name="レイド作成", description="新しいユニオンレイドを作成します")
@@ -176,16 +194,15 @@ class UnionRaidCog(commands.Cog):
                         try:
                             cog: UnionRaidCog = interaction.client.get_cog('UnionRaidCog')
                             if cog:
-                                class _R: pass
-                                r = _R()
-                                r.id = raid.id
-                                r.guild_id = raid.guild_id
-                                r.raid_name = "ユニオンレイド"
-                                # pass aware times for scheduling/display
-                                r.start_time = start_time_aware
-                                r.end_time = end_time_aware
-                                r.notify_time = start_time_aware
-                                r.channel_id = raid.channel_id
+                                r = RaidInfo(
+                                    id=raid.id,
+                                    guild_id=raid.guild_id,
+                                    raid_name="ユニオンレイド",
+                                    start_time=start_time_aware,
+                                    end_time=end_time_aware,
+                                    notify_time=start_time_aware,
+                                    channel_id=raid.channel_id,
+                                )
                                 cog._schedule_notification_task(r)
                         except Exception:
                             logger.exception(f"レイド通知スケジュール中にエラー")
@@ -202,7 +219,7 @@ class UnionRaidCog(commands.Cog):
         modal = RaidStartModal()
         await interaction.response.send_modal(modal)
 
-    def _schedule_notification_task(self, raid: UnionRaid):
+    def _schedule_notification_task(self, raid: RaidInfo):
         """レイドの通知タスクを作成して管理辞書に登録する"""
         guild_id = raid.guild_id
         if guild_id in self._scheduled_tasks:
