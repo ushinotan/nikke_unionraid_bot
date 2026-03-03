@@ -14,10 +14,57 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = logging.getLogger(__name__)
 
+class ReportView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @ui.button(label="報告", style=discord.ButtonStyle.primary, custom_id="raid_report")
+    async def report_button(self, interaction: discord.Interaction, button: Button):
+        # embed から raid_id を取得
+        embed = interaction.message.embeds[0]
+        raid_id = int(embed.fields[1].value.strip('`'))
+        # Modal を開く
+        modal = ReportModal(raid_id)
+        await interaction.response.send_modal(modal)
+
+class ReportModal(Modal):
+    def __init__(self, raid_id: int):
+        super().__init__(title="レイド報告")
+        self.raid_id = raid_id
+        self.difficulty = Select(
+            placeholder="難易度を選択してください",
+            options=[
+                discord.SelectOption(label="ノーマル", value="normal"),
+                discord.SelectOption(label="ハード", value="hard")
+            ]
+        )
+        self.add_item(self.difficulty)
+
+    async def on_submit(self, modal_interaction: discord.Interaction):
+        difficulty = self.difficulty.values[0]
+        async with async_session_factory() as session:
+            q = await session.execute(
+                RaidReport.__table__.select().where(
+                    (RaidReport.raid_id == self.raid_id) & (RaidReport.user_id == modal_interaction.user.id) & (RaidReport.difficulty == difficulty)
+                )
+            )
+            existing = q.first()
+            if existing:
+                existing_id = existing._mapping.get('id') if hasattr(existing, '_mapping') else existing.id
+                await session.execute(
+                    RaidReport.__table__.update().where(RaidReport.id == existing_id).values(is_3t=1, reported_at=utcnow_aware(), username=modal_interaction.user.display_name)
+                )
+            else:
+                report = RaidReport(raid_id=self.raid_id, user_id=modal_interaction.user.id, username=modal_interaction.user.display_name, difficulty=difficulty, is_3t=1)
+                session.add(report)
+            await session.commit()
+        await modal_interaction.response.send_message('報告を受け付けました。', ephemeral=True)
+
 class UnionRaidCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._scheduled_tasks: Dict[int, asyncio.Task] = {}
+        self.bot.add_view(ReportView())
 
     async def resume_schedules(self):
         """起動時にDBから残っているレイドを読み、通知をスケジュールする"""
@@ -143,7 +190,7 @@ class UnionRaidCog(commands.Cog):
                         except Exception:
                             logger.exception(f"レイド通知スケジュール中にエラー")
                             pass
-                except Exception:
+                except Exception as e:
                     logger.exception(f"レイド作成モーダル処理中にエラー")
                     try:
                         await modal_interaction.followup.send(f"入力の解析に失敗しました: {e}", ephemeral=True)
@@ -189,49 +236,7 @@ class UnionRaidCog(commands.Cog):
                     embed.add_field(name="開始時刻", value=f"<t:{int(ts_dt.timestamp())}:F>")
                     embed.add_field(name="レイドID", value=f"`{raid.id}`")
 
-                    class ReportView(View):
-                        def __init__(self, raid_id: int, timeout_seconds: float):
-                            super().__init__(timeout=timeout_seconds)
-                            self.raid_id = raid_id
-
-                        @ui.button(label="報告", style=discord.ButtonStyle.primary, custom_id="raid_report_button")
-                        async def report_button(self, interaction: discord.Interaction, button: Button):
-                            raid_id_ref = self.raid_id
-                            
-                            class DifficultySelect(Select):
-                                def __init__(self):
-                                    options = [
-                                        discord.SelectOption(label="ノーマル", value="normal"),
-                                        discord.SelectOption(label="ハード", value="hard")
-                                    ]
-                                    super().__init__(placeholder="難易度を選択してください", options=options)
-                                
-                                async def callback(self, select_interaction: discord.Interaction):
-                                    difficulty = self.values[0]
-                                    async with async_session_factory() as session:
-                                        q = await session.execute(
-                                            RaidReport.__table__.select().where(
-                                                (RaidReport.raid_id == raid_id_ref) & (RaidReport.user_id == select_interaction.user.id) & (RaidReport.difficulty == difficulty)
-                                            )
-                                        )
-                                        existing = q.first()
-                                        if existing:
-                                            existing_id = existing._mapping.get('id') if hasattr(existing, '_mapping') else existing.id
-                                            await session.execute(
-                                                RaidReport.__table__.update().where(RaidReport.id == existing_id).values(is_3t=1, reported_at=utcnow_aware(), username=select_interaction.user.display_name)
-                                            )
-                                        else:
-                                            report = RaidReport(raid_id=raid_id_ref, user_id=select_interaction.user.id, username=select_interaction.user.display_name, difficulty=difficulty, is_3t=1)
-                                            session.add(report)
-                                        await session.commit()
-                                    await select_interaction.response.send_message('報告を受け付けました。', ephemeral=True)
-                            
-                            view = View()
-                            view.add_item(DifficultySelect())
-                            await interaction.response.send_message('難易度を選択してください:', view=view, ephemeral=True)
-
-                    timeout_seconds = (raid.end_time - utcnow_aware()).total_seconds()
-                    view = ReportView(raid_id=raid.id, timeout_seconds=timeout_seconds)
+                    view = ReportView()
                     await channel.send(embed=embed, view=view)
                     async with async_session_factory() as session:
                         await session.execute(
