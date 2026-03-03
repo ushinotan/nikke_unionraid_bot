@@ -31,11 +31,17 @@ class ReportView(View):
 
     @ui.button(label="報告", style=discord.ButtonStyle.primary, custom_id="raid_report")
     async def report_button(self, interaction: discord.Interaction, button: Button):
-        # embed から raid_id を取得
-        embed = interaction.message.embeds[0]
-        raid_id = int(embed.fields[1].value.strip('`'))
-        view = DifficultySelectView(raid_id)
-        await interaction.response.send_message('難易度を選択してください:', view=view, ephemeral=True)
+        try:
+            # embed から raid_id を取得
+            embed = interaction.message.embeds[0]
+            raid_id = int(embed.fields[1].value.strip('`'))
+            view = DifficultySelectView(raid_id)
+            await interaction.response.send_message('難易度を選択してください:', view=view, ephemeral=True)
+        except discord.errors.NotFound:
+            # インタラクショントークンの失効（ボット再起動後の古いメッセージ等）
+            logger.warning("report_button: Unknown interaction (token expired or already acknowledged)")
+        except Exception:
+            logger.exception("report_button でエラーが発生しました")
 
 
 class DifficultySelect(Select):
