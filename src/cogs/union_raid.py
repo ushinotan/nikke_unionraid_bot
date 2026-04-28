@@ -26,8 +26,9 @@ class RaidInfo:
     channel_id: int
 
 class ReportView(View):
-    def __init__(self):
+    def __init__(self, cog: "UnionRaidCog"):
         super().__init__(timeout=None)
+        self.cog = cog
 
     @ui.button(label="報告", style=discord.ButtonStyle.primary, custom_id="raid_report")
     async def report_button(self, interaction: discord.Interaction, button: Button):
@@ -35,7 +36,7 @@ class ReportView(View):
             # embed から raid_id を取得
             embed = interaction.message.embeds[0]
             raid_id = int(embed.fields[1].value.strip('`'))
-            view = DifficultySelectView(raid_id)
+            view = DifficultySelectView(raid_id, self.cog)
             await interaction.response.send_message('難易度を選択してください:', view=view, ephemeral=True)
         except discord.errors.NotFound:
             # インタラクショントークンの失効（ボット再起動後の古いメッセージ等）
@@ -45,8 +46,9 @@ class ReportView(View):
 
 
 class DifficultySelect(Select):
-    def __init__(self, raid_id: int):
+    def __init__(self, raid_id: int, cog: "UnionRaidCog"):
         self.raid_id = raid_id
+        self.cog = cog
         super().__init__(
             placeholder="難易度を選択してください",
             options=[
@@ -74,18 +76,22 @@ class DifficultySelect(Select):
                 session.add(report)
             await session.commit()
         await interaction.response.send_message('報告を受け付けました。', ephemeral=True)
+        
+        # メッセージを更新
+        await self.cog._update_raid_message(self.raid_id)
 
 
 class DifficultySelectView(View):
-    def __init__(self, raid_id: int):
+    def __init__(self, raid_id: int, cog: "UnionRaidCog"):
         super().__init__(timeout=60)
-        self.add_item(DifficultySelect(raid_id))
+        self.add_item(DifficultySelect(raid_id, cog))
 
 class UnionRaidCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._scheduled_tasks: Dict[int, asyncio.Task] = {}
-        self.bot.add_view(ReportView())
+        self._raid_notify_messages: Dict[int, discord.Message] = {}  # raid_id -> message
+        self.bot.add_view(ReportView(self))
 
     async def resume_schedules(self):
         """起動時にDBから残っているレイドを読み、通知をスケジュールする"""
@@ -229,6 +235,55 @@ class UnionRaidCog(commands.Cog):
         modal = RaidStartModal()
         await interaction.response.send_modal(modal)
 
+    async def _update_raid_message(self, raid_id: int):
+        """レイド通知メッセージを更新（最新の報告状況を反映）"""
+        try:
+            if raid_id not in self._raid_notify_messages:
+                return
+            
+            message = self._raid_notify_messages[raid_id]
+            
+            async with async_session_factory() as session:
+                # 現在のレイドの全報告を取得
+                rq = await session.execute(
+                    RaidReport.__table__.select().where((RaidReport.raid_id == raid_id) & (RaidReport.is_3t == 1))
+                )
+                reports = rq.fetchall()
+                normal_users = []
+                hard_users = []
+                for rep in reports:
+                    repm = rep._mapping if hasattr(rep, '_mapping') else rep
+                    uname = repm.get('username')
+                    diff = repm.get('difficulty')
+                    if diff == 'normal':
+                        normal_users.append(uname)
+                    else:
+                        hard_users.append(uname)
+            
+            # embed を更新
+            if message.embeds:
+                embed = message.embeds[0]
+                # フィールドを更新（ノーマル 3凸とハード 3凸）
+                for field in embed.fields:
+                    if field.name == "ノーマル 3凸":
+                        embed.set_field_at(
+                            embed.fields.index(field),
+                            name="ノーマル 3凸",
+                            value=("\n".join(normal_users) if normal_users else "なし"),
+                            inline=False
+                        )
+                    elif field.name == "ハード 3凸":
+                        embed.set_field_at(
+                            embed.fields.index(field),
+                            name="ハード 3凸",
+                            value=("\n".join(hard_users) if hard_users else "なし"),
+                            inline=False
+                        )
+                
+                await message.edit(embed=embed)
+        except Exception as e:
+            logger.error(f"レイドメッセージ更新中にエラー: {e}")
+
     def _schedule_notification_task(self, raid: RaidInfo):
         """レイドの通知タスクを作成して管理辞書に登録する"""
         guild_id = raid.guild_id
@@ -262,9 +317,12 @@ class UnionRaidCog(commands.Cog):
                         ts_dt = raid.start_time
                     embed.add_field(name="開始時刻", value=f"<t:{int(ts_dt.timestamp())}:F>")
                     embed.add_field(name="レイドID", value=f"`{raid.id}`")
+                    embed.add_field(name="ノーマル 3凸", value="なし", inline=False)
+                    embed.add_field(name="ハード 3凸", value="なし", inline=False)
 
-                    view = ReportView()
-                    await channel.send(embed=embed, view=view)
+                    view = ReportView(self)
+                    message = await channel.send(embed=embed, view=view)
+                    self._raid_notify_messages[raid.id] = message
                     async with async_session_factory() as session:
                         await session.execute(
                             UnionRaid.__table__.update().where(UnionRaid.id == raid.id).values(notify_time=None)
@@ -327,6 +385,10 @@ class UnionRaidCog(commands.Cog):
                 if gid in self._scheduled_tasks:
                     t = self._scheduled_tasks.pop(gid)
                     t.cancel()
+                
+                # メッセージもメモリから削除
+                if raid_id in self._raid_notify_messages:
+                    del self._raid_notify_messages[raid_id]
 
                 await interaction.followup.send(embed=embed, content="人間、今回もおつかれさま。")
         except Exception as e:
