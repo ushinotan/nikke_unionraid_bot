@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS union_raids (
     end_time TIMESTAMPTZ NOT NULL,
     notify_time TIMESTAMPTZ,
     channel_id BIGINT NOT NULL,
-    ranking VARCHAR(16), 
+    ranking INTEGER,
+    percentage NUMERIC(6,2),
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
