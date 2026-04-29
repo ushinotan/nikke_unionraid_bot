@@ -46,10 +46,11 @@ def test_default_timezone_hours_defaults_to_9(monkeypatch):
         m.delenv('DEFAULT_TIMEZONE_HOURS', raising=False)
         reloaded = importlib.reload(utils_module)
 
-        assert reloaded.DEFAULT_TIMEZONE_OFFSET == 9
-        assert reloaded.DEFAULT_TIMEZONE == timezone(timedelta(hours=9))
-
-    importlib.reload(utils_module)
+        try:
+            assert reloaded.DEFAULT_TIMEZONE_OFFSET == 9
+            assert reloaded.DEFAULT_TIMEZONE == timezone(timedelta(hours=9))
+        finally:
+            importlib.reload(utils_module)
 
 
 def test_default_timezone_hours_can_be_overridden(monkeypatch):
@@ -58,7 +59,8 @@ def test_default_timezone_hours_can_be_overridden(monkeypatch):
         m.setenv('DEFAULT_TIMEZONE_HOURS', '0')
         reloaded = importlib.reload(utils_module)
 
-        assert reloaded.DEFAULT_TIMEZONE_OFFSET == 0
-        assert reloaded.DEFAULT_TIMEZONE == timezone(timedelta(hours=0))
-
-    importlib.reload(utils_module)
+        try:
+            assert reloaded.DEFAULT_TIMEZONE_OFFSET == 0
+            assert reloaded.DEFAULT_TIMEZONE == timezone(timedelta(hours=0))
+        finally:
+            importlib.reload(utils_module)
