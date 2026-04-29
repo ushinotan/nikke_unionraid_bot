@@ -96,4 +96,4 @@ docker-compose logs -f db
 - **ユーザー向け表示**: `DEFAULT_TIMEZONE_HOURS` で指定したオフセットのタイムゾーンで表示する（デフォルト: JST = UTC+9）
 - **通知待機**: `notify_time`（UTC）と現在時刻（UTC）の差分で待機秒数を算出する。`notify_time` が過去の場合は即時通知する
 
-詳細な仕様は [docs/go-migration-definition-of-done.md](docs/go-migration-definition-of-done.md) を参照してください。
+詳細な仕様は [go/docs/go-migration-definition-of-done.md](go/docs/go-migration-definition-of-done.md) を参照してください。

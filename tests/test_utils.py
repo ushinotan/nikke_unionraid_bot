@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 import importlib
-import os
 
 import utils as utils_module
 from utils import DEFAULT_TIMEZONE, ensure_utc_aware, localnow_aware, utcnow_aware
@@ -43,17 +42,23 @@ def test_localnow_aware_uses_default_timezone():
 
 def test_default_timezone_hours_defaults_to_9(monkeypatch):
     """DEFAULT_TIMEZONE_HOURS環境変数が未設定の場合、デフォルト値が9（JST）であることを確認する。"""
-    monkeypatch.delenv('DEFAULT_TIMEZONE_HOURS', raising=False)
-    reloaded = importlib.reload(utils_module)
+    with monkeypatch.context() as m:
+        m.delenv('DEFAULT_TIMEZONE_HOURS', raising=False)
+        reloaded = importlib.reload(utils_module)
 
-    assert reloaded.DEFAULT_TIMEZONE_OFFSET == 9
-    assert reloaded.DEFAULT_TIMEZONE == timezone(timedelta(hours=9))
+        assert reloaded.DEFAULT_TIMEZONE_OFFSET == 9
+        assert reloaded.DEFAULT_TIMEZONE == timezone(timedelta(hours=9))
+
+    importlib.reload(utils_module)
 
 
 def test_default_timezone_hours_can_be_overridden(monkeypatch):
     """DEFAULT_TIMEZONE_HOURS環境変数を設定すると、タイムゾーンが変わることを確認する。"""
-    monkeypatch.setenv('DEFAULT_TIMEZONE_HOURS', '0')
-    reloaded = importlib.reload(utils_module)
+    with monkeypatch.context() as m:
+        m.setenv('DEFAULT_TIMEZONE_HOURS', '0')
+        reloaded = importlib.reload(utils_module)
 
-    assert reloaded.DEFAULT_TIMEZONE_OFFSET == 0
-    assert reloaded.DEFAULT_TIMEZONE == timezone(timedelta(hours=0))
+        assert reloaded.DEFAULT_TIMEZONE_OFFSET == 0
+        assert reloaded.DEFAULT_TIMEZONE == timezone(timedelta(hours=0))
+
+    importlib.reload(utils_module)
