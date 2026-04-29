@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, BigInteger, Integer, String, DateTime, ForeignKey, Numeric
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -19,7 +19,9 @@ class UnionRaid(Base):
     start_time = Column(DateTime(timezone=True), nullable=False)
     end_time = Column(DateTime(timezone=True), nullable=False)
     notify_time = Column(DateTime(timezone=True), nullable=True)
-    channel_id = Column(BigInteger, nullable=True)
+    channel_id = Column(BigInteger, nullable=False)
+    ranking = Column(Integer, nullable=True)
+    percentage = Column(Numeric(6, 2), nullable=True)
     created_at = Column(DateTime(timezone=True))  # DB default now()
     
     guild = relationship("Guild", back_populates="raids")

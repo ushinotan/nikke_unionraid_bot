@@ -1,5 +1,6 @@
 import importlib
 from datetime import datetime, timezone
+from decimal import Decimal
 import sys
 import types
 from unittest.mock import AsyncMock, Mock
@@ -25,10 +26,14 @@ class _Column:
 
 
 class _Query:
+    def __init__(self):
+        self.values_kwargs = None
+
     def where(self, *_args, **_kwargs):
         return self
 
     def values(self, **_kwargs):
+        self.values_kwargs = _kwargs
         return self
 
 
@@ -178,6 +183,24 @@ async def test_raid_end_rejects_percentage_out_of_range(monkeypatch):
     )
 
 
+def test_to_percentage_decimal_quantizes_to_two_decimals(monkeypatch):
+    """パーセンテージを小数第2位のDecimalへ正規化することを確認する。"""
+    union_raid = _load_union_raid_module(monkeypatch)
+
+    result = union_raid.to_percentage_decimal(33.335)
+
+    assert result == Decimal("33.34")
+
+
+def test_to_percentage_decimal_returns_none_for_none(monkeypatch):
+    """パーセンテージ未指定時はNoneを返すことを確認する。"""
+    union_raid = _load_union_raid_module(monkeypatch)
+
+    result = union_raid.to_percentage_decimal(None)
+
+    assert result is None
+
+
 @pytest.mark.asyncio
 async def test_resume_schedules_registers_future_and_past_notify(monkeypatch):
     """通知時刻が未来/過去のレイドをそれぞれスケジュール対象にすることを確認する。"""
@@ -295,3 +318,59 @@ async def test_schedule_notification_task_sends_and_clears_state(monkeypatch):
     session.commit.assert_awaited_once()
     assert 333 not in cog._scheduled_tasks
     assert cog._raid_notify_messages[777] is message
+
+
+@pytest.mark.asyncio
+async def test_raid_end_updates_ranking_when_rank_is_provided(monkeypatch):
+    """順位指定時にUPDATEへrankingが渡り、percentageがNoneで保存されることを確認する。"""
+    now = datetime(2026, 4, 29, 12, 0, tzinfo=timezone.utc)
+    active_raid_row = types.SimpleNamespace(_mapping={"id": 10, "guild_id": 123, "raid_name": "R"})
+    session = types.SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                types.SimpleNamespace(first=lambda: active_raid_row),
+                types.SimpleNamespace(fetchall=lambda: []),
+                types.SimpleNamespace(),
+            ]
+        ),
+        commit=AsyncMock(),
+    )
+    union_raid = _load_union_raid_module(monkeypatch, session_factory=_SessionFactory(session))
+    monkeypatch.setattr(union_raid, "utcnow_aware", lambda: now)
+
+    cog = union_raid.UnionRaidCog(_DummyBot())
+    interaction = _make_interaction()
+
+    await union_raid.UnionRaidCog.raid_end.callback(cog, interaction, 42, None)
+
+    update_query = session.execute.await_args_list[2].args[0]
+    assert update_query.values_kwargs["ranking"] == 42
+    assert update_query.values_kwargs["percentage"] is None
+
+
+@pytest.mark.asyncio
+async def test_raid_end_updates_percentage_as_decimal_when_provided(monkeypatch):
+    """パーセンテージ指定時にUPDATEへDecimal量子化値が渡ることを確認する。"""
+    now = datetime(2026, 4, 29, 12, 0, tzinfo=timezone.utc)
+    active_raid_row = types.SimpleNamespace(_mapping={"id": 11, "guild_id": 123, "raid_name": "R"})
+    session = types.SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=[
+                types.SimpleNamespace(first=lambda: active_raid_row),
+                types.SimpleNamespace(fetchall=lambda: []),
+                types.SimpleNamespace(),
+            ]
+        ),
+        commit=AsyncMock(),
+    )
+    union_raid = _load_union_raid_module(monkeypatch, session_factory=_SessionFactory(session))
+    monkeypatch.setattr(union_raid, "utcnow_aware", lambda: now)
+
+    cog = union_raid.UnionRaidCog(_DummyBot())
+    interaction = _make_interaction()
+
+    await union_raid.UnionRaidCog.raid_end.callback(cog, interaction, None, 5.3)
+
+    update_query = session.execute.await_args_list[2].args[0]
+    assert update_query.values_kwargs["ranking"] is None
+    assert update_query.values_kwargs["percentage"] == Decimal("5.30")
