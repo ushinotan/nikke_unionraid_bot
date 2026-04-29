@@ -15,6 +15,7 @@ cp .env.example .env
 `.env`ファイルを編集して、必要な値を設定:
 - `DISCORD_TOKEN`: DiscordボットのトークンW
 - `POSTGRES_PASSWORD`: PostgreSQLのパスワード
+- `DEFAULT_TIMEZONE_HOURS`: ユーザー向け表示に使うタイムゾーンのUTCオフセット（デフォルト: `9` = JST）
 
 ### 2. Dockerコンテナの起動
 ```bash
@@ -86,3 +87,13 @@ docker-compose logs -f db
 1. データベースコンテナが起動しているか確認: `docker-compose ps`
 2. ヘルスチェックの状態を確認: `docker-compose ps db`
 3. データベースのログを確認: `docker-compose logs db`
+
+## 時刻ポリシー
+
+このボットは以下の時刻ルールに従って動作します。
+
+- **DB保存**: 全日時を **UTC** で保存する（PostgreSQL `TIMESTAMPTZ` 型）
+- **ユーザー向け表示**: `DEFAULT_TIMEZONE_HOURS` で指定したオフセットのタイムゾーンで表示する（デフォルト: JST = UTC+9）
+- **通知待機**: `notify_time`（UTC）と現在時刻（UTC）の差分で待機秒数を算出する。`notify_time` が過去の場合は即時通知する
+
+詳細な仕様は [docs/go-migration-definition-of-done.md](docs/go-migration-definition-of-done.md) を参照してください。
