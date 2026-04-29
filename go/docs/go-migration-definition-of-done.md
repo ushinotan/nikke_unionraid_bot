@@ -11,11 +11,11 @@ Go移行では以下の機能を**すべて保持**することを必須とす�
 
 | 機能 | 説明 | Python実装参照 |
 |------|------|----------------|
-| レイド作成 | `/レイド作成` Slashコマンド。開始時刻モーダル→UTC保存→通知時刻セット | [union_raid.py L171-L209](/src/cogs/union_raid.py) |
-| レイド終了 | `/レイド終了` Slashコマンド。3凸集計→終了処理→タスク/メモリ掃除 | [union_raid.py L351-L433](/src/cogs/union_raid.py) |
-| 3凸（3ヒット）報告 | ボタンUI中心の報告フロー。difficulty（normal/hard）を分けて記録 | [union_raid.py L1-L94](/src/cogs/union_raid.py) |
-| 通知 | notify_time に基づく予約通知。待機計算→チャンネル送信→notify_timeクリア | [union_raid.py L304-L344](/src/cogs/union_raid.py) |
-| 再起動復元 | 起動時にDBをスキャンしnotify_time状態から通知タスクを再スケジュール | [union_raid.py L108-L140](/src/cogs/union_raid.py) |
+| レイド作成 | `/レイド作成` Slashコマンド。開始時刻モーダル→UTC保存→通知時刻セット | [union_raid.py L171-L209](../../src/cogs/union_raid.py#L171-L209) |
+| レイド終了 | `/レイド終了` Slashコマンド。3凸集計→終了処理→タスク/メモリ掃除 | [union_raid.py L351-L433](../../src/cogs/union_raid.py#L351-L433) |
+| 3凸（3ヒット）報告 | ボタンUI中心の報告フロー。difficulty（normal/hard）を分けて記録 | [union_raid.py L1-L94](../../src/cogs/union_raid.py#L1-L94) |
+| 通知 | notify_time に基づく予約通知。待機計算→チャンネル送信→notify_timeクリア | [union_raid.py L304-L344](../../src/cogs/union_raid.py#L304-L344) |
+| 再起動復元 | 起動時にDBをスキャンしnotify_time状態から通知タスクを再スケジュール | [union_raid.py L108-L140](../../src/cogs/union_raid.py#L108-L140) |
 
 ---
 
@@ -30,7 +30,7 @@ Go移行では以下の機能を**すべて保持**することを必須とす�
 - **集計ロジック**:
   - 3凸の判定: `is_3t = 1` かつ `difficulty` ごとに分類（`normal` / `hard`）
   - `percentage` は小数第2位・四捨五入（`NUMERIC(6,2)` に準拠）
-  - 参照実装: [union_raid.py L22-L36](/src/cogs/union_raid.py)
+  - 参照実装: [union_raid.py L22-L36](../../src/cogs/union_raid.py#L22-L36)
 - **UTC保存**: DBへ書き込む全日時は UTC (`TIMESTAMPTZ`)
 - **DBスキーマ**: `init.sql`（後述のセクション3参照）に定義されたテーブル・カラム・制約に従う
 
@@ -168,9 +168,9 @@ wait = notify_time(UTC timestamp) - now(UTC timestamp)
 
 ### 4.5 実装参照（Python）
 
-- `ensure_utc_aware` / `utcnow_aware` / `localnow_aware`: [`src/utils.py`](/src/utils.py)
-- 通知待機計算: [`src/cogs/union_raid.py` L304-L320](/src/cogs/union_raid.py)
-- 再起動復元: [`src/cogs/union_raid.py` L108-L140](/src/cogs/union_raid.py)
+- `ensure_utc_aware` / `utcnow_aware` / `localnow_aware`: [src/utils.py L7-L19](../../src/utils.py#L7-L19)
+- 通知待機計算: [src/cogs/union_raid.py L304-L320](../../src/cogs/union_raid.py#L304-L320)
+- 再起動復元: [src/cogs/union_raid.py L108-L140](../../src/cogs/union_raid.py#L108-L140)
 
 ---
 
