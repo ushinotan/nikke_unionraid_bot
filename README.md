@@ -13,9 +13,11 @@ cp .env.example .env
 ```
 
 `.env`ファイルを編集して、必要な値を設定:
-- `DISCORD_TOKEN`: DiscordボットのトークンW
+- `DISCORD_TOKEN`: Discordボットのトークン
 - `POSTGRES_PASSWORD`: PostgreSQLのパスワード
+- `POSTGRES_HOST_PORT`: Postgresホストポート
 - `DEFAULT_TIMEZONE_HOURS`: ユーザー向け表示に使うタイムゾーンのUTCオフセット（デフォルト: `9` = JST）
+
 
 ### 2. Dockerコンテナの起動
 ```bash
