@@ -1,6 +1,7 @@
 import logging
 import asyncio
 from dataclasses import dataclass
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta, timezone
 import discord
 from discord import app_commands
@@ -14,6 +15,15 @@ from utils import utcnow_aware, localnow_aware, DEFAULT_TIMEZONE, ensure_utc_awa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = logging.getLogger(__name__)
+
+PERCENTAGE_QUANT = Decimal("0.01")
+
+
+def to_percentage_decimal(value: Optional[float]) -> Optional[Decimal]:
+    """コマンド入力のfloatをDB保存用Decimal(小数第2位)へ正規化する。"""
+    if value is None:
+        return None
+    return Decimal(str(value)).quantize(PERCENTAGE_QUANT, rounding=ROUND_HALF_UP)
 
 @dataclass
 class RaidInfo:
@@ -361,6 +371,7 @@ class UnionRaidCog(commands.Cog):
             if パーセンテージ is not None and (パーセンテージ <= 0 or パーセンテージ > 100):
                 await interaction.followup.send("パーセンテージは0より大きく100以下で指定してください。", ephemeral=True)
                 return
+            percentage_decimal = to_percentage_decimal(パーセンテージ)
 
             now = utcnow_aware()
             async with async_session_factory() as session:
@@ -392,8 +403,8 @@ class UnionRaidCog(commands.Cog):
                 embed = discord.Embed(title=f"レイド {data.get('raid_name')} の終了報告", color=discord.Color.gold())
                 if 順位 is not None:
                     embed.add_field(name="最終順位", value=f"{順位}位", inline=True)
-                if パーセンテージ is not None:
-                    embed.add_field(name="上位パーセンテージ", value=f"{パーセンテージ:.2f}%", inline=True)
+                if percentage_decimal is not None:
+                    embed.add_field(name="上位パーセンテージ", value=f"{percentage_decimal:.2f}%", inline=True)
                 embed.add_field(name="ノーマル 3凸", value=("\n".join(normal_users) if normal_users else "なし"), inline=False)
                 embed.add_field(name="ハード 3凸", value=("\n".join(hard_users) if hard_users else "なし"), inline=False)
 
@@ -403,7 +414,7 @@ class UnionRaidCog(commands.Cog):
                         end_time=now,
                         notify_time=None,
                         ranking=順位,
-                        percentage=パーセンテージ,
+                        percentage=percentage_decimal,
                     )
                 )
                 await session.commit()
