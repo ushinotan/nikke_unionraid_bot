@@ -18,3 +18,7 @@ venv/
 
 # Logs
 *.log
+
+# Test coverage
+.coverage
+htmlcov/
