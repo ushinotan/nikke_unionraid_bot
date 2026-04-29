@@ -340,9 +340,28 @@ class UnionRaidCog(commands.Cog):
 
     @app_commands.command(name="レイド終了", description="進行中のレイドを終了し、3凸報告を集計します")
     @app_commands.guild_only()
-    async def raid_end(self, interaction: discord.Interaction):
+    @app_commands.describe(
+        順位="最終ランキング順位（例: 1, 42）",
+        パーセンテージ="最終ランキングの上位パーセンテージ（例: 5.3）"
+    )
+    async def raid_end(
+        self,
+        interaction: discord.Interaction,
+        順位: Optional[int] = None,
+        パーセンテージ: Optional[float] = None,
+    ):
         await interaction.response.defer(ephemeral=False)
         try:
+            if 順位 is not None and パーセンテージ is not None:
+                await interaction.followup.send("順位かパーセンテージのどちらか一方のみ指定してください。", ephemeral=True)
+                return
+            if 順位 is not None and 順位 < 1:
+                await interaction.followup.send("順位は1以上で指定してください。", ephemeral=True)
+                return
+            if パーセンテージ is not None and (パーセンテージ <= 0 or パーセンテージ > 100):
+                await interaction.followup.send("パーセンテージは0より大きく100以下で指定してください。", ephemeral=True)
+                return
+
             now = utcnow_aware()
             async with async_session_factory() as session:
                 q = await session.execute(
@@ -371,12 +390,21 @@ class UnionRaidCog(commands.Cog):
                         hard_users.append(uname)
 
                 embed = discord.Embed(title=f"レイド {data.get('raid_name')} の終了報告", color=discord.Color.gold())
+                if 順位 is not None:
+                    embed.add_field(name="最終順位", value=f"{順位}位", inline=True)
+                if パーセンテージ is not None:
+                    embed.add_field(name="上位パーセンテージ", value=f"{パーセンテージ:.2f}%", inline=True)
                 embed.add_field(name="ノーマル 3凸", value=("\n".join(normal_users) if normal_users else "なし"), inline=False)
                 embed.add_field(name="ハード 3凸", value=("\n".join(hard_users) if hard_users else "なし"), inline=False)
 
                 # 終了処理: end_time を現在にセット、notify_time をクリア
                 await session.execute(
-                    UnionRaid.__table__.update().where(UnionRaid.id == raid_id).values(end_time=now, notify_time=None)
+                    UnionRaid.__table__.update().where(UnionRaid.id == raid_id).values(
+                        end_time=now,
+                        notify_time=None,
+                        ranking=順位,
+                        percentage=パーセンテージ,
+                    )
                 )
                 await session.commit()
 
