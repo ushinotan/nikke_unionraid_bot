@@ -7,9 +7,9 @@
 ## セットアップ手順
 
 ### 1. 環境変数の設定
-`.env.example`をコピーして`.env`ファイルを作成:
+`env.example`をコピーして`.env`ファイルを作成:
 ```bash
-cp .env.example .env
+cp env.example .env
 ```
 
 `.env`ファイルを編集して、必要な値を設定:
