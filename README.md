@@ -2,7 +2,7 @@
 
 ## 前提条件
 - Docker
-- Docker Compose
+- Docker Compose V2
 
 ## セットアップ手順
 
