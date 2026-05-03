@@ -99,3 +99,29 @@ docker-compose logs -f db
 - **通知待機**: `notify_time`（UTC）と現在時刻（UTC）の差分で待機秒数を算出する。`notify_time` が過去の場合は即時通知する
 
 詳細な仕様は [go/docs/go-migration-definition-of-done.md](go/docs/go-migration-definition-of-done.md) を参照してください。
+
+## Dev Container での開発（Python / Go / Kotlin）
+
+このリポジトリは `.devcontainer/` 設定で、Python・Go・Kotlin を同じ開発コンテナで扱えます。
+
+### 1. VS Code でコンテナを起動
+1. VS Code でリポジトリを開く
+2. Command Palette から `Dev Containers: Reopen in Container` を実行する
+
+### 2. 初回セットアップ
+コンテナ起動時に `postCreateCommand` が実行され、以下を自動セットアップします。
+- Python 依存 (`requirements.txt`)
+- Go モジュール (`go/go.mod`)
+- Kotlin/Gradle 動作確認 (`kotlin/build.gradle.kts` がある場合)
+
+### 3. ツール確認
+コンテナ内で以下が利用可能です。
+- Python 3
+- Go
+- OpenJDK 21
+- Kotlin compiler (`kotlinc`)
+- Gradle
+
+### 4. PostgreSQL について
+Dev Container 起動時に `db` サービス（PostgreSQL 16）が同時起動します。
+アプリ側接続先は `db:5432` です。

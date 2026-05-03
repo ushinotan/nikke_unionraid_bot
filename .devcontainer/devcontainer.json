@@ -1,0 +1,25 @@
+{
+  "name": "nikke-unionraid-dev",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "runServices": [
+    "app",
+    "db"
+  ],
+  "workspaceFolder": "/workspaces/nikke_unionraid_bot",
+  "shutdownAction": "stopCompose",
+  "postCreateCommand": "bash .devcontainer/postCreateCommand.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "golang.Go",
+        "fwcd.kotlin",
+        "vscjava.vscode-gradle",
+        "ms-azuretools.vscode-docker",
+        "EditorConfig.EditorConfig"
+      ]
+    }
+  }
+}
