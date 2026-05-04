@@ -29,7 +29,11 @@ fi
 if [ -f kotlin/build.gradle.kts ]; then
   echo "[postCreate] Checking Gradle project..."
   cd kotlin
-  gradle --no-daemon tasks >/dev/null || true
+  if [ -f gradle/wrapper/gradle-wrapper.jar ]; then
+    ./gradlew --no-daemon tasks >/dev/null || true
+  else
+    gradle --no-daemon tasks >/dev/null || true
+  fi
   cd /workspaces/nikke_unionraid_bot
 fi
 
@@ -38,4 +42,8 @@ python3 --version || true
 go version || true
 java -version || true
 kotlinc -version || true
-gradle --version || true
+if [ -f /workspaces/nikke_unionraid_bot/kotlin/gradle/wrapper/gradle-wrapper.jar ]; then
+  ./kotlin/gradlew --version || true
+else
+  gradle --version || true
+fi
