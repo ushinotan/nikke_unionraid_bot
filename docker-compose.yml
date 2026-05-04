@@ -13,12 +13,14 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
+      - DEFAULT_TIMEZONE_HOURS=${DEFAULT_TIMEZONE_HOURS:-9}
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - ./src:/app/src
-      - ./logs:/app/logs
+      - ./kotlin/build/libs:/app/libs
+    ports:
+      - "8080:8080"
     networks:
       - bot_network
 

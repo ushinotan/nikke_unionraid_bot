@@ -19,6 +19,7 @@ services:
         condition: service_healthy
     volumes:
       - ..:/workspaces/nikke_unionraid_bot:cached
+      - /var/run/docker.sock:/var/run/docker.sock
 
   db:
     image: postgres:16-alpine
