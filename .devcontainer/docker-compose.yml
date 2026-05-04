@@ -7,13 +7,13 @@ services:
     command: sleep infinity
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN:-dummy-token-for-devcontainer}
-      POSTGRES_USER: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-nikke_unionraid}
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
+      POSTGRES_HOST: ${POSTGRES_HOST:-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       DEFAULT_TIMEZONE_HOURS: ${DEFAULT_TIMEZONE_HOURS:-9}
-      DATABASE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-nikke_unionraid}
+      DATABASE_URL: jdbc:postgresql://${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-nikke_unionraid}
     depends_on:
       db:
         condition: service_healthy
@@ -26,7 +26,7 @@ services:
     container_name: nikke_unionraid_dev_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-nikke_unionraid}
     volumes:
