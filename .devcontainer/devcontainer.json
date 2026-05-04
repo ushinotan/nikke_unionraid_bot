@@ -9,6 +9,11 @@
   "workspaceFolder": "/workspaces/nikke_unionraid_bot",
   "shutdownAction": "stopCompose",
   "postCreateCommand": "bash .devcontainer/postCreateCommand.sh",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": false
+    }
+  },
   "customizations": {
     "vscode": {
       "extensions": [
