@@ -6,19 +6,19 @@ services:
     container_name: nikke_unionraid_bot
     restart: unless-stopped
     environment:
-      - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - POSTGRES_USER=postgres
+      - DISCORD_TOKEN=${DISCORD_TOKEN:-}
+      - DATABASE_URL=jdbc:postgresql://${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-nikke_unionraid}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-nikke_unionraid}
+      - POSTGRES_HOST=${POSTGRES_HOST:-db}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - DEFAULT_TIMEZONE_HOURS=${DEFAULT_TIMEZONE_HOURS:-9}
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src
-      - ./logs:/app/logs
+    ports:
+      - "8080:8080"
     networks:
       - bot_network
 
@@ -27,9 +27,9 @@ services:
     container_name: nikke_unionraid_db
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_DB=${POSTGRES_DB:-nikke_unionraid}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql

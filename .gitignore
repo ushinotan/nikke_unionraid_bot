@@ -22,3 +22,23 @@ venv/
 # Test coverage
 .coverage
 htmlcov/
+
+# Kotlin / Gradle
+.gradle/
+**/build/
+kotlin/bin/
+*.class
+*.jar
+*.war
+*.ear
+*.kotlin_module
+.idea/
+.vscode/
+kotlin/.kotlin/
+kotlin/gradle/wrapper/gradle-wrapper.jar
+!kotlin/gradle/wrapper/gradle-wrapper.jar
+!kotlin/gradle/wrapper/gradle-wrapper.properties
+
+# Spring Boot
+*.original
+HELP.md

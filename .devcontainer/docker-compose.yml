@@ -1,0 +1,42 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: nikke_unionraid_devcontainer
+    command: sleep infinity
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN:-dummy-token-for-devcontainer}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-nikke_unionraid}
+      POSTGRES_HOST: ${POSTGRES_HOST:-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      DEFAULT_TIMEZONE_HOURS: ${DEFAULT_TIMEZONE_HOURS:-9}
+      DATABASE_URL: jdbc:postgresql://${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-nikke_unionraid}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ..:/workspaces/nikke_unionraid_bot:cached
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  db:
+    image: postgres:16-alpine
+    container_name: nikke_unionraid_dev_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-nikke_unionraid}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

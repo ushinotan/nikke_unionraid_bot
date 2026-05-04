@@ -1,24 +1,35 @@
-FROM python:3.11-slim
+# ---- Build stage ----
+FROM eclipse-temurin:21-jdk-jammy AS builder
+
+WORKDIR /build
+
+# Prepare Gradle wrapper
+COPY kotlin/gradlew ./gradlew
+COPY kotlin/gradle/wrapper/ gradle/wrapper/
+RUN chmod +x ./gradlew
+
+# Cache dependencies
+COPY kotlin/build.gradle.kts kotlin/settings.gradle.kts ./
+RUN ./gradlew dependencies --no-daemon -q || true
+
+# Build application
+COPY kotlin/src/ src/
+RUN ./gradlew bootJar --no-daemon -q
+
+# ---- Runtime stage ----
+FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    gcc \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
-COPY requirements.txt .
+COPY --from=builder /build/build/libs/nikke-unionraid-bot.jar nikke-unionraid-bot.jar
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Expose port
+EXPOSE 8080
 
-# Copy application code
-COPY . .
-
-# Create logs directory
-RUN mkdir -p /app/logs
-
-# Run the bot
-CMD ["python", "-u", "src/main.py"]
+# Run the Spring Boot application
+CMD ["java", "-jar", "nikke-unionraid-bot.jar"]
