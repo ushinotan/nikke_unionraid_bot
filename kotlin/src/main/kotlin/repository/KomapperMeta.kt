@@ -8,6 +8,6 @@ import org.komapper.core.dsl.Meta
 
 abstract class KomapperMeta {
     val guildTable = Meta.guild
-    val RaidReportTable = Meta.raidReport
-    val UnionRaid = Meta.unionRaid
+    val raidReportTable = Meta.raidReport
+    val unionRaid = Meta.unionRaid
 }
