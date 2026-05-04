@@ -10,6 +10,7 @@
   "shutdownAction": "stopCompose",
   "postCreateCommand": "bash .devcontainer/postCreateCommand.sh",
   "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
       "moby": false
     }
