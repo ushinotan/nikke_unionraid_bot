@@ -26,10 +26,10 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/build/libs/*-SNAPSHOT.jar app.jar
+COPY --from=builder /build/build/libs/nikke-unionraid-bot.jar nikke-unionraid-bot.jar
 
 # Expose port
 EXPOSE 8080
 
 # Run the Spring Boot application
-CMD ["java", "-jar", "app.jar"]
+CMD ["java", "-jar", "nikke-unionraid-bot.jar"]

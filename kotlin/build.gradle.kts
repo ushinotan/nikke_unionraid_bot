@@ -35,3 +35,7 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
+tasks.bootJar {
+    archiveFileName.set("nikke-unionraid-bot.jar")
+}
