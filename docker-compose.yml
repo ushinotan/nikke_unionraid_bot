@@ -5,8 +5,6 @@ services:
       dockerfile: Dockerfile
     container_name: nikke_unionraid_bot
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN:-}
       - DATABASE_URL=jdbc:postgresql://${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-nikke_unionraid}
