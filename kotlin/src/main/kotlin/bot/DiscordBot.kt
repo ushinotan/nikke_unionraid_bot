@@ -61,6 +61,11 @@ class DiscordBot(
 
         try {
             readyFuture.get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        } catch (e: InterruptedException) {
+            readyFuture.cancel(true)
+            jda.shutdownNow()
+            Thread.currentThread().interrupt()
+            throw IllegalStateException("Discord BotのREADY待機中に割り込みが発生したため、起動を中止します。", e)
         } catch (e: TimeoutException) {
             readyFuture.cancel(true)
             jda.shutdownNow()
