@@ -1,15 +1,20 @@
 # ---- Build stage ----
-FROM gradle:8.12-jdk21-jammy AS builder
+FROM eclipse-temurin:21-jdk-jammy AS builder
 
 WORKDIR /build
 
+# Prepare Gradle wrapper
+COPY kotlin/gradlew ./gradlew
+COPY kotlin/gradle/wrapper/ gradle/wrapper/
+RUN chmod +x ./gradlew
+
 # Cache dependencies
 COPY kotlin/build.gradle.kts kotlin/settings.gradle.kts ./
-RUN gradle dependencies --no-daemon -q || true
+RUN ./gradlew dependencies --no-daemon -q || true
 
 # Build application
 COPY kotlin/src/ src/
-RUN gradle bootJar --no-daemon -q
+RUN ./gradlew bootJar --no-daemon -q
 
 # ---- Runtime stage ----
 FROM eclipse-temurin:21-jre-jammy

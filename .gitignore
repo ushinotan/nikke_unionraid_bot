@@ -36,6 +36,7 @@ kotlin/bin/
 .vscode/
 kotlin/.kotlin/
 kotlin/gradle/wrapper/gradle-wrapper.jar
+!kotlin/gradle/wrapper/gradle-wrapper.jar
 !kotlin/gradle/wrapper/gradle-wrapper.properties
 
 # Spring Boot
