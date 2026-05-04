@@ -62,12 +62,15 @@ class DiscordBot(
         try {
             readyFuture.get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         } catch (e: TimeoutException) {
+            readyFuture.cancel(true)
             jda.shutdownNow()
             throw IllegalStateException(
                 "Discord BotのREADY待機が${READY_TIMEOUT_SECONDS}秒でタイムアウトしたため、起動を中止します。",
                 e,
             )
         } catch (e: ExecutionException) {
+            readyFuture.cancel(true)
+            jda.shutdownNow()
             throw IllegalStateException("Discord BotのREADY待機中にエラーが発生したため、起動を中止します。", e.cause ?: e)
         }
     }

@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConfigurationProperties(prefix = "discord")
 class DiscordConfig {
-    lateinit var token: String
+    var token: String = ""
 }
 
 @Configuration
