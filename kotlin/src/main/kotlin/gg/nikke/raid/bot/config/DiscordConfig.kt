@@ -5,4 +5,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties(prefix = "discord")
 class DiscordConfig {
     var token: String = ""
+    var devGuildId: String? = null
 }

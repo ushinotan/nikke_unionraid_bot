@@ -79,7 +79,11 @@ class UnionRaidEventListener(
         }
 
         try {
-            val startText = event.getValue("start_time")?.asString?.trim() ?: return
+            val startText = event.getValue("start_time")?.asString?.trim()
+                ?: run {
+                    event.hook.sendMessage("入力値を取得できませんでした。").setEphemeral(true).queue()
+                    return
+                }
             val offset = ZoneOffset.ofHours(appConfig.defaultTimezoneHours)
             val startTimeUtc = LocalDateTime.parse(startText, timeFormatter)
                 .atOffset(offset)
@@ -164,7 +168,11 @@ class UnionRaidEventListener(
             percentage = percentage,
         )
 
-        result.onSuccess {
+        result.onSuccess { updatedCount ->
+            if (updatedCount == 0L) {
+                event.hook.sendMessage("レイドの終了処理に失敗しました。再度お試しください。").setEphemeral(true).queue()
+                return@onSuccess
+            }
             val aggregation = raidDomainService.aggregateRaidResults(activeRaid.id)
             val embed = EmbedBuilder()
                 .setTitle("レイド ${activeRaid.raidName} の終了報告")

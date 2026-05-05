@@ -44,7 +44,7 @@ class DiscordBot(
                 .addEventListeners(eventListener)
                 .build()
             waitForReadyWithTimeout(jda)
-            CommandRegistrar.register(jda)
+            CommandRegistrar.register(jda, discordConfig.devGuildId)
             scheduler.resumeSchedules(jda)
             logger.info("Discord Botが正常に起動しました。")
         } catch (e: InvalidTokenException) {
