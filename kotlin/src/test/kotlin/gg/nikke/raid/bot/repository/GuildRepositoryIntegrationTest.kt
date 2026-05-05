@@ -19,8 +19,6 @@ open class GuildRepositoryIntegrationTest(
     fun `guildを作成して取得できる`() {
         val guildId = 10_000_001L
 
-        guildRepository.deleteGuildById(guildId)
-
         val inserted = guildRepository.insertGuild(
             Guild(
                 guildId = guildId,
@@ -33,15 +31,11 @@ open class GuildRepositoryIntegrationTest(
         assertEquals(1L, inserted)
         assertNotNull(found)
         assertEquals(guildId, found?.guildId)
-
-        guildRepository.deleteGuildById(guildId)
     }
 
     @Test
     fun `同じguildIdを再登録しても重複作成されない`() {
         val guildId = 10_000_002L
-
-        guildRepository.deleteGuildById(guildId)
 
         val guild = Guild(
             guildId = guildId,
@@ -53,8 +47,6 @@ open class GuildRepositoryIntegrationTest(
 
         assertEquals(1L, firstInsert)
         assertEquals(0L, secondInsert)
-
-        guildRepository.deleteGuildById(guildId)
     }
 
     @Test
