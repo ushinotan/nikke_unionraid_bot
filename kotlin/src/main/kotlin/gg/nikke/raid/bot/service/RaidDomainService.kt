@@ -22,6 +22,12 @@ class RaidDomainService(
     private val raidReportRepository: RaidReportRepository,
 ) {
 
+    companion object {
+        private val MIN_RAID_DURATION = Duration.ofHours(1)
+        private const val MIN_RANKING = 1
+        private val MAX_PERCENTAGE = BigDecimal("100")
+    }
+
     /**
      * 新しいユニオンレイドを作成します。
      *
@@ -43,7 +49,7 @@ class RaidDomainService(
         channelId: Long,
         now: OffsetDateTime = TimeUtils.utcNow(),
     ): Result<UnionRaid> {
-        if (Duration.between(startTime, endTime) < Duration.ofHours(1)) {
+        if (Duration.between(startTime, endTime) < MIN_RAID_DURATION) {
             return Result.failure(RaidDomainError.DurationTooShort)
         }
 
@@ -83,11 +89,11 @@ class RaidDomainService(
             return Result.failure(RaidDomainError.RankingAndPercentageBothSpecified)
         }
 
-        if (ranking != null && ranking < 1) {
+        if (ranking != null && ranking < MIN_RANKING) {
             return Result.failure(RaidDomainError.RankingOutOfRange(ranking))
         }
 
-        if (percentage != null && (percentage <= BigDecimal.ZERO || percentage > BigDecimal("100"))) {
+        if (percentage != null && (percentage <= BigDecimal.ZERO || percentage > MAX_PERCENTAGE)) {
             return Result.failure(RaidDomainError.PercentageOutOfRange(percentage))
         }
 
