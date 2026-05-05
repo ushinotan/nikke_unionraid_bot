@@ -22,7 +22,9 @@ import java.util.concurrent.TimeoutException
     matchIfMissing = true,
 )
 class DiscordBot(
-    private val discordConfig: DiscordConfig
+    private val discordConfig: DiscordConfig,
+    private val eventListener: UnionRaidEventListener,
+    private val scheduler: RaidNotificationScheduler,
 ) {
     private val logger = LoggerFactory.getLogger(DiscordBot::class.java)
     private lateinit var jda: JDA
@@ -38,8 +40,12 @@ class DiscordBot(
         }
 
         try {
-            jda = JDABuilder.createDefault(token).build()
+            jda = JDABuilder.createDefault(token)
+                .addEventListeners(eventListener)
+                .build()
             waitForReadyWithTimeout(jda)
+            CommandRegistrar.register(jda, discordConfig.devGuildId)
+            scheduler.resumeSchedules(jda)
             logger.info("Discord Botが正常に起動しました。")
         } catch (e: InvalidTokenException) {
             throw IllegalStateException("Discord Botトークンが無効なため、起動を中止します。", e)
