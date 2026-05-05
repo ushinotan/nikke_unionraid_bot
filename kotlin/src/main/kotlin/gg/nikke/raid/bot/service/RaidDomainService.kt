@@ -7,7 +7,6 @@ import gg.nikke.raid.bot.repository.UnionRaidRepository
 import gg.nikke.raid.bot.util.TimeUtils
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.Duration
 import java.time.OffsetDateTime
 
@@ -69,8 +68,8 @@ class RaidDomainService(
      * 指定されたレイドを終了します。
      *
      * @param raidId 終了するレイドのID
-     * @param ranking 終了時の順位（任意）。指定する場合、percentageと同時に指定することはできません
-     * @param percentage 終了時の進行状況を示すパーセンテージ（任意）。0より大きく100以下である必要があります。指定する場合、rankingと同時に指定することはできません
+     * @param ranking 終了時の順位（任意）。1以上で指定。percentageと同時指定不可
+     * @param percentage 終了時の上位パーセンテージ（任意）。0より大きく100以下。rankingと同時指定不可
      * @param now 現在時刻（デフォルト値はUTC現在時刻）
      * @return 更新されたレコード数を成功値として返却。失敗時はエラーを含むResultオブジェクトを返却
      */
@@ -82,6 +81,10 @@ class RaidDomainService(
     ): Result<Long> {
         if (ranking != null && percentage != null) {
             return Result.failure(RaidDomainError.RankingAndPercentageBothSpecified)
+        }
+
+        if (ranking != null && ranking < 1) {
+            return Result.failure(RaidDomainError.RankingOutOfRange(ranking))
         }
 
         if (percentage != null && (percentage <= BigDecimal.ZERO || percentage > BigDecimal("100"))) {
@@ -120,42 +123,17 @@ class RaidDomainService(
     }
 
     /**
-     * 指定されたレイド ID に基づきレイドの集計結果を計算する。
+     * 指定されたレイドの3凸報告をnormal/hard別のユーザー名リストに集計する。
      *
      * @param raidId レイド ID
-     * @return レイド報告の集計結果を表す `RaidAggregation` オブジェクト
+     * @return 難易度ごとの3凸済みユーザー名リストを含む `RaidAggregation`
      */
     fun aggregateRaidResults(raidId: Int): RaidAggregation {
         val reports = raidReportRepository.findRaidReportsByRaidId(raidId)
 
-        val normalCount = reports.count { it.difficulty == "normal" }
-        val hardCount = reports.count { it.difficulty == "hard" }
-        val total = normalCount + hardCount
-
-        if (total == 0) {
-            return RaidAggregation(
-                normalCount = 0,
-                hardCount = 0,
-                normalPercentage = BigDecimal.ZERO,
-                hardPercentage = BigDecimal.ZERO,
-            )
-        }
-
-        val totalDecimal = total.toBigDecimal()
-        val normalPercentage = normalCount.toBigDecimal()
-            .divide(totalDecimal, 4, RoundingMode.HALF_UP)
-            .multiply(BigDecimal("100"))
-            .setScale(2, RoundingMode.HALF_UP)
-        val hardPercentage = hardCount.toBigDecimal()
-            .divide(totalDecimal, 4, RoundingMode.HALF_UP)
-            .multiply(BigDecimal("100"))
-            .setScale(2, RoundingMode.HALF_UP)
-
         return RaidAggregation(
-            normalCount = normalCount,
-            hardCount = hardCount,
-            normalPercentage = normalPercentage,
-            hardPercentage = hardPercentage,
+            normalUsers = reports.filter { it.difficulty == "normal" }.map { it.username },
+            hardUsers = reports.filter { it.difficulty == "hard" }.map { it.username },
         )
     }
 }

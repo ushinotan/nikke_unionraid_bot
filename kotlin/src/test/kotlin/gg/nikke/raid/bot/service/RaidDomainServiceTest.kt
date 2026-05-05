@@ -162,6 +162,22 @@ open class RaidDomainServiceTest(
     }
 
     @Test
+    fun `レイド終了_順位0でRankingOutOfRangeエラーになる`() {
+        val result = raidDomainService.finishRaid(raidId = 1, ranking = 0)
+
+        assertTrue(result.isFailure)
+        assertInstanceOf(RaidDomainError.RankingOutOfRange::class.java, result.exceptionOrNull())
+    }
+
+    @Test
+    fun `レイド終了_負の順位でRankingOutOfRangeエラーになる`() {
+        val result = raidDomainService.finishRaid(raidId = 1, ranking = -1)
+
+        assertTrue(result.isFailure)
+        assertInstanceOf(RaidDomainError.RankingOutOfRange::class.java, result.exceptionOrNull())
+    }
+
+    @Test
     fun `レイド終了_パーセンテージ0でPercentageOutOfRangeエラーになる`() {
         val result = raidDomainService.finishRaid(raidId = 1, percentage = BigDecimal("0"))
 
@@ -232,8 +248,8 @@ open class RaidDomainServiceTest(
         raidDomainService.reportThreeTurn(raid.id, 90_000_002L, "new-name", "hard", now.plusMinutes(10))
 
         val aggregation = raidDomainService.aggregateRaidResults(raid.id)
-        assertEquals(0, aggregation.normalCount)
-        assertEquals(1, aggregation.hardCount)
+        assertEquals(0, aggregation.normalUsers.size)
+        assertEquals(1, aggregation.hardUsers.size)
     }
 
     // ----------------------------------------------------------------
@@ -241,7 +257,7 @@ open class RaidDomainServiceTest(
     // ----------------------------------------------------------------
 
     @Test
-    fun `集計_報告がない場合は0を返す`() {
+    fun `集計_報告がない場合は空リストを返す`() {
         val guildId = 70_000_009L
         val now = OffsetDateTime.now()
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
@@ -256,14 +272,12 @@ open class RaidDomainServiceTest(
 
         val result = raidDomainService.aggregateRaidResults(raid.id)
 
-        assertEquals(0, result.normalCount)
-        assertEquals(0, result.hardCount)
-        assertEquals(BigDecimal.ZERO, result.normalPercentage)
-        assertEquals(BigDecimal.ZERO, result.hardPercentage)
+        assertTrue(result.normalUsers.isEmpty())
+        assertTrue(result.hardUsers.isEmpty())
     }
 
     @Test
-    fun `集計_難易度別の件数が正しく集計される`() {
+    fun `集計_難易度別のユーザー名リストが正しく集計される`() {
         val guildId = 70_000_010L
         val now = OffsetDateTime.now()
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
@@ -276,18 +290,20 @@ open class RaidDomainServiceTest(
             now = now,
         ).getOrThrow()
 
-        raidDomainService.reportThreeTurn(raid.id, 90_000_011L, "user1", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_012L, "user2", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_013L, "user3", "hard", now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_011L, "user-normal-1", "normal", now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_012L, "user-normal-2", "normal", now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_013L, "user-hard-1", "hard", now)
 
         val result = raidDomainService.aggregateRaidResults(raid.id)
 
-        assertEquals(2, result.normalCount)
-        assertEquals(1, result.hardCount)
+        assertEquals(2, result.normalUsers.size)
+        assertEquals(1, result.hardUsers.size)
+        assertTrue(result.normalUsers.containsAll(listOf("user-normal-1", "user-normal-2")))
+        assertEquals("user-hard-1", result.hardUsers[0])
     }
 
     @Test
-    fun `集計_パーセンテージが小数第2位で丸められる`() {
+    fun `集計_upsert後のユーザー名は最新名で返る`() {
         val guildId = 70_000_011L
         val now = OffsetDateTime.now()
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
@@ -300,18 +316,12 @@ open class RaidDomainServiceTest(
             now = now,
         ).getOrThrow()
 
-        // normal 5件, hard 2件 → normal: 5/7≒71.43%, hard: 2/7≒28.57%
-        raidDomainService.reportThreeTurn(raid.id, 90_000_021L, "user1", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_022L, "user2", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_023L, "user3", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_024L, "user4", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_025L, "user5", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_026L, "user6", "hard", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_027L, "user7", "hard", now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_021L, "old-name", "normal", now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_021L, "new-name", "normal", now.plusMinutes(10))
 
         val result = raidDomainService.aggregateRaidResults(raid.id)
 
-        assertEquals(BigDecimal("71.43"), result.normalPercentage)
-        assertEquals(BigDecimal("28.57"), result.hardPercentage)
+        assertEquals(1, result.normalUsers.size)
+        assertEquals("new-name", result.normalUsers[0])
     }
 }
