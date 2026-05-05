@@ -101,7 +101,7 @@ class RaidDomainService(
      * @param raidId レイドのID
      * @param userId ユーザーのID
      * @param username ユーザー名
-     * @param difficulty 難易度（例: "normal" または "hard"）
+     * @param difficulty 難易度
      * @param now 報告の時刻（デフォルトは現在のUTC時刻）
      * @return 保存された報告のIDを含む `Result` オブジェクト
      */
@@ -109,14 +109,14 @@ class RaidDomainService(
         raidId: Int,
         userId: Long,
         username: String,
-        difficulty: String,
+        difficulty: Difficulty,
         now: OffsetDateTime = TimeUtils.utcNow(),
     ): Result<Long> {
         val report = RaidReport(
             raidId = raidId,
             userId = userId,
             username = username,
-            difficulty = difficulty,
+            difficulty = difficulty.value,
             reportedAt = now,
         )
         return Result.success(raidReportRepository.saveRaidReport(report))
@@ -132,8 +132,8 @@ class RaidDomainService(
         val reports = raidReportRepository.findRaidReportsByRaidId(raidId)
 
         return RaidAggregation(
-            normalUsers = reports.filter { it.difficulty == "normal" }.map { it.username },
-            hardUsers = reports.filter { it.difficulty == "hard" }.map { it.username },
+            normalUsers = reports.filter { it.difficulty == Difficulty.NORMAL.value }.map { it.username },
+            hardUsers = reports.filter { it.difficulty == Difficulty.HARD.value }.map { it.username },
         )
     }
 }

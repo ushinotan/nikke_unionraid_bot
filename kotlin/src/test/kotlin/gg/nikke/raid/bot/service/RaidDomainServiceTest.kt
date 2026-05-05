@@ -223,7 +223,7 @@ open class RaidDomainServiceTest(
             raidId = raid.id,
             userId = 90_000_001L,
             username = "test-user",
-            difficulty = "normal",
+            difficulty = Difficulty.NORMAL,
             now = now,
         )
 
@@ -244,8 +244,8 @@ open class RaidDomainServiceTest(
             now = now,
         ).getOrThrow()
 
-        raidDomainService.reportThreeTurn(raid.id, 90_000_002L, "old-name", "hard", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_002L, "new-name", "hard", now.plusMinutes(10))
+        raidDomainService.reportThreeTurn(raid.id, 90_000_002L, "old-name", Difficulty.HARD, now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_002L, "new-name", Difficulty.HARD, now.plusMinutes(10))
 
         val aggregation = raidDomainService.aggregateRaidResults(raid.id)
         assertEquals(0, aggregation.normalUsers.size)
@@ -290,9 +290,9 @@ open class RaidDomainServiceTest(
             now = now,
         ).getOrThrow()
 
-        raidDomainService.reportThreeTurn(raid.id, 90_000_011L, "user-normal-1", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_012L, "user-normal-2", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_013L, "user-hard-1", "hard", now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_011L, "user-normal-1", Difficulty.NORMAL, now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_012L, "user-normal-2", Difficulty.NORMAL, now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_013L, "user-hard-1", Difficulty.HARD, now)
 
         val result = raidDomainService.aggregateRaidResults(raid.id)
 
@@ -316,8 +316,8 @@ open class RaidDomainServiceTest(
             now = now,
         ).getOrThrow()
 
-        raidDomainService.reportThreeTurn(raid.id, 90_000_021L, "old-name", "normal", now)
-        raidDomainService.reportThreeTurn(raid.id, 90_000_021L, "new-name", "normal", now.plusMinutes(10))
+        raidDomainService.reportThreeTurn(raid.id, 90_000_021L, "old-name", Difficulty.NORMAL, now)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_021L, "new-name", Difficulty.NORMAL, now.plusMinutes(10))
 
         val result = raidDomainService.aggregateRaidResults(raid.id)
 
