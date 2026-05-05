@@ -1,13 +1,13 @@
-package com.nikke.bot
+package gg.nikke.raid.bot.bot
 
-import com.nikke.config.DiscordConfig
+import gg.nikke.raid.bot.config.DiscordConfig
+import jakarta.annotation.PostConstruct
+import jakarta.annotation.PreDestroy
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.exceptions.InvalidTokenException
-import jakarta.annotation.PostConstruct
-import jakarta.annotation.PreDestroy
-import org.springframework.stereotype.Component
 import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Component
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
