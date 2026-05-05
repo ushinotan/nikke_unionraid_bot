@@ -23,7 +23,6 @@ open class UnionRaidRepositoryIntegrationTest(
         val guildId = 20_000_001L
         val now = OffsetDateTime.now()
 
-        cleanupGuild(guildId)
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
 
         val created = unionRaidRepository.insertUnionRaid(
@@ -47,8 +46,6 @@ open class UnionRaidRepositoryIntegrationTest(
         assertNotNull(found)
         assertEquals(created.id, found?.id)
         assertEquals("test-active-raid", found?.raidName)
-
-        cleanupGuild(guildId)
     }
 
     @Test
@@ -56,7 +53,6 @@ open class UnionRaidRepositoryIntegrationTest(
         val guildId = 20_000_002L
         val now = OffsetDateTime.now()
 
-        cleanupGuild(guildId)
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
 
         unionRaidRepository.insertUnionRaid(
@@ -77,8 +73,6 @@ open class UnionRaidRepositoryIntegrationTest(
         )
 
         assertNull(found)
-
-        cleanupGuild(guildId)
     }
 
     @Test
@@ -86,7 +80,6 @@ open class UnionRaidRepositoryIntegrationTest(
         val guildId = 20_000_003L
         val now = OffsetDateTime.now()
 
-        cleanupGuild(guildId)
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
 
         val created = unionRaidRepository.insertUnionRaid(
@@ -104,16 +97,12 @@ open class UnionRaidRepositoryIntegrationTest(
         val raids = unionRaidRepository.findNotifiableActiveUnionRaids(now)
 
         assertTrue(raids.any { it.id == created.id })
-
-        cleanupGuild(guildId)
     }
 
     @Test
     fun `notifyTimeをクリアできる`() {
         val guildId = 20_000_004L
         val now = OffsetDateTime.now()
-
-        cleanupGuild(guildId)
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
 
         val created = unionRaidRepository.insertUnionRaid(
@@ -134,8 +123,6 @@ open class UnionRaidRepositoryIntegrationTest(
 
         assertEquals(1L, updatedCount)
         assertTrue(notifiableRaids.none { it.id == created.id })
-
-        cleanupGuild(guildId)
     }
 
     @Test
@@ -143,8 +130,6 @@ open class UnionRaidRepositoryIntegrationTest(
         val guildId = 20_000_005L
         val now = OffsetDateTime.now()
         val finishTime = now.plusMinutes(5)
-
-        cleanupGuild(guildId)
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
 
         val created = unionRaidRepository.insertUnionRaid(
@@ -173,11 +158,5 @@ open class UnionRaidRepositoryIntegrationTest(
 
         assertEquals(1L, updatedCount)
         assertNull(activeRaid)
-
-        cleanupGuild(guildId)
-    }
-
-    private fun cleanupGuild(guildId: Long) {
-        guildRepository.deleteGuildById(guildId)
     }
 }

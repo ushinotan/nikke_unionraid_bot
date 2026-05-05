@@ -23,9 +23,6 @@ open class RaidReportRepositoryIntegrationTest(
     fun `3凸報告を登録して取得できる`() {
         val guildId = 40_000_001L
         val now = OffsetDateTime.now()
-
-        cleanupGuild(guildId)
-
         val raid = createRaid(guildId, now)
 
         val saved = raidReportRepository.saveRaidReport(
@@ -49,16 +46,12 @@ open class RaidReportRepositoryIntegrationTest(
         assertNotNull(found)
         assertEquals("test-user-1", found?.username)
         assertEquals(1, found?.is3t)
-
-        cleanupGuild(guildId)
     }
 
     @Test
     fun `同じraidId userId difficultyの3凸報告はupsertで更新される`() {
         val guildId = 40_000_002L
         val now = OffsetDateTime.now()
-
-        cleanupGuild(guildId)
 
         val raid = createRaid(guildId, now)
 
@@ -94,16 +87,12 @@ open class RaidReportRepositoryIntegrationTest(
         assertNotNull(found)
         assertEquals("after-name", found?.username)
         assertEquals(1, found?.is3t)
-
-        cleanupGuild(guildId)
     }
 
     @Test
     fun `指定レイドの3凸報告一覧を取得できる`() {
         val guildId = 40_000_003L
         val now = OffsetDateTime.now()
-
-        cleanupGuild(guildId)
 
         val raid = createRaid(guildId, now)
 
@@ -134,8 +123,6 @@ open class RaidReportRepositoryIntegrationTest(
         assertTrue(reports.any { it.userId == 50_000_003L })
         assertTrue(reports.any { it.userId == 50_000_004L })
         assertTrue(reports.all { it.is3t == 1 })
-
-        cleanupGuild(guildId)
     }
 
     private fun createRaid(guildId: Long, now: OffsetDateTime): UnionRaid {
@@ -157,9 +144,5 @@ open class RaidReportRepositoryIntegrationTest(
                         createdAt = now,
                         )
         )
-    }
-
-    private fun cleanupGuild(guildId: Long) {
-        guildRepository.deleteGuildById(guildId)
     }
 }
