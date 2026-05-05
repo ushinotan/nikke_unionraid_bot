@@ -2,7 +2,6 @@ package gg.nikke.raid.bot.repository
 
 import gg.nikke.raid.bot.entity.RaidReport
 import org.komapper.core.dsl.QueryDsl
-import org.komapper.core.dsl.metamodel.PropertyMetamodel
 import org.komapper.core.dsl.query.firstOrNull
 import org.komapper.jdbc.JdbcDatabase
 import org.springframework.stereotype.Repository

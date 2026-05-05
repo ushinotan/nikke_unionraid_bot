@@ -3,11 +3,8 @@ package gg.nikke.raid.bot.repository
 import gg.nikke.raid.bot.entity.Guild
 import gg.nikke.raid.bot.entity.RaidReport
 import gg.nikke.raid.bot.entity.UnionRaid
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestConstructor
 import org.springframework.transaction.annotation.Transactional
