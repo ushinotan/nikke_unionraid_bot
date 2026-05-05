@@ -1,4 +1,4 @@
-package com.nikke.bot.entity
+package gg.nikke.raid.bot.entity
 
 import org.komapper.annotation.KomapperEntity
 import org.komapper.annotation.KomapperAutoIncrement
