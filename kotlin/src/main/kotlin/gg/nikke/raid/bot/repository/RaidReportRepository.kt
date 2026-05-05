@@ -26,7 +26,7 @@ class RaidReportRepository(
      * @param difficulty 難易度（例: `normal`, `hard` など）
      * @return 一致する `RaidReport`。存在しない場合は `null`
      */
-    fun findRaidReports(raidId: Int, userId: Long, difficulty: String): RaidReport? {
+    fun findRaidReport(raidId: Int, userId: Long, difficulty: String): RaidReport? {
         val query = QueryDsl.from(raidReportTable)
             .where {
                 raidReportTable.raidId eq raidId

@@ -36,7 +36,7 @@ open class RaidReportRepositoryIntegrationTest(
                         )
         )
 
-        val found = raidReportRepository.findRaidReports(
+        val found = raidReportRepository.findRaidReport(
                 raidId = raid.id,
                 userId = 50_000_001L,
                 difficulty = "normal",
@@ -77,7 +77,7 @@ open class RaidReportRepositoryIntegrationTest(
                         )
         )
 
-        val found = raidReportRepository.findRaidReports(
+        val found = raidReportRepository.findRaidReport(
                 raidId = raid.id,
                 userId = 50_000_002L,
                 difficulty = "hard",
