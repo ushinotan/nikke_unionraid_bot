@@ -1,4 +1,4 @@
-package com.nikke.config
+package gg.nikke.raid.bot.config
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 
