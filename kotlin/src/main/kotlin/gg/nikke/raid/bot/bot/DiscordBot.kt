@@ -7,6 +7,7 @@ import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.exceptions.InvalidTokenException
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
@@ -14,6 +15,12 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 @Component
+@ConditionalOnProperty(
+    prefix = "discord.bot",
+    name = ["enabled"],
+    havingValue = "true",
+    matchIfMissing = true,
+)
 class DiscordBot(
     private val discordConfig: DiscordConfig
 ) {
