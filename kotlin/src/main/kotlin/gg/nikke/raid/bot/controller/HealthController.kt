@@ -1,4 +1,4 @@
-package com.nikke.controller
+package gg.nikke.raid.bot.controller
 
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
