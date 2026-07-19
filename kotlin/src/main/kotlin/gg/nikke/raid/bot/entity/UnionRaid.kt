@@ -21,5 +21,6 @@ data class UnionRaid(
     val channelId: Long,
     val ranking: Int? = null,
     val percentage: BigDecimal? = null,
+    val finishedAt: OffsetDateTime? = null,
     val createdAt: OffsetDateTime? = null
 )

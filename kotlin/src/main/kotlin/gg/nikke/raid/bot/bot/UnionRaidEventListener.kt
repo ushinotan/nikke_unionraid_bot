@@ -123,6 +123,14 @@ class UnionRaidEventListener(
                     delaySeconds = maxOf(0L, TimeUtils.secondsUntil(startTimeUtc)),
                     jda = event.jda,
                 )
+                scheduler.scheduleAutoEnd(
+                    guildId = guildId,
+                    raidId = raid.id,
+                    channelId = channelId,
+                    raidName = raid.raidName,
+                    delaySeconds = maxOf(0L, TimeUtils.secondsUntil(endTimeUtc)),
+                    jda = event.jda,
+                )
             }.onFailure { error ->
                 val message = when (error) {
                     is RaidDomainError.ActiveRaidAlreadyExists ->
@@ -182,7 +190,8 @@ class UnionRaidEventListener(
             embed.addField("ノーマル 3凸", aggregation.normalUsers.joinToString("\n").ifEmpty { "なし" }, false)
             embed.addField("ハード 3凸", aggregation.hardUsers.joinToString("\n").ifEmpty { "なし" }, false)
 
-            scheduler.cancelNotification(guildId)
+            scheduler.cancelNotification(guildId, activeRaid.id)
+            scheduler.cancelAutoEnd(activeRaid.id)
             scheduler.removeMessage(activeRaid.id)
 
             event.hook.sendMessage("人間、今回もおつかれさま。").addEmbeds(embed.build()).queue()

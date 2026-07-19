@@ -27,7 +27,22 @@ class UnionRaidRepository (
         val query = QueryDsl.from(unionRaidTable)
             .where {
                 unionRaidTable.guildId eq guildId
-                unionRaidTable.endTime greater now
+                unionRaidTable.finishedAt.isNull()
+            }
+            .firstOrNull()
+        return database.runQuery(query)
+    }
+
+    /**
+     * 指定されたレイドIDのユニオンレイドを取得します。
+     *
+     * @param raidId 検索対象のレイドID
+     * @return 一致する `UnionRaid`。存在しない場合は `null`。
+     */
+    fun findUnionRaidById(raidId: Int): UnionRaid? {
+        val query = QueryDsl.from(unionRaidTable)
+            .where {
+                unionRaidTable.id eq raidId
             }
             .firstOrNull()
         return database.runQuery(query)
@@ -45,7 +60,22 @@ class UnionRaidRepository (
         val query = QueryDsl.from(unionRaidTable)
             .where {
                 unionRaidTable.notifyTime.isNotNull()
-                unionRaidTable.endTime greater now
+                unionRaidTable.finishedAt.isNull()
+            }
+
+        return database.runQuery(query)
+    }
+
+    /**
+     * まだ終了処理されていないユニオンレイド一覧を取得します。
+     * 自動終了スケジュールの再開・キャッチアップに使用します。
+     *
+     * @return 未終了の `UnionRaid` 一覧。存在しない場合は空のリスト。
+     */
+    fun findUnfinishedUnionRaids(): List<UnionRaid> {
+        val query = QueryDsl.from(unionRaidTable)
+            .where {
+                unionRaidTable.finishedAt.isNull()
             }
 
         return database.runQuery(query)
@@ -89,7 +119,7 @@ class UnionRaidRepository (
      * @param now 終了時刻。デフォルトは現在時刻
      * @param ranking ランキング。nullの場合はNULLに更新する
      * @param percentage パーセンテージ。nullの場合はNULLに更新する
-     * @return 更新件数
+     * @return 更新件数（既に終了済みの場合は0）
      */
     fun finishUnionRaid(
         raidId: Int,
@@ -103,9 +133,11 @@ class UnionRaidRepository (
                 unionRaidTable.notifyTime eq null
                 unionRaidTable.ranking eq ranking
                 unionRaidTable.percentage eq percentage
+                unionRaidTable.finishedAt eq now
             }
             .where {
                 unionRaidTable.id eq raidId
+                unionRaidTable.finishedAt.isNull()
             }
 
         return database.runQuery(query)

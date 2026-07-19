@@ -82,6 +82,7 @@ union_raids (
     channel_id BIGINT NOT NULL,
     ranking INTEGER,
     percentage NUMERIC(6,2),           -- 小数第2位固定
+    finished_at TIMESTAMPTZ,           -- NULLは未終了。手動/自動終了時にセット
     created_at TIMESTAMPTZ DEFAULT now()
 )
 
