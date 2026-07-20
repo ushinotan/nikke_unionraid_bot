@@ -1,12 +1,3 @@
-.gitignore
-
-# Python cache files
-__pycache__/
-*.py[cod]
-
-# Virtual environment
-venv/
-
 # Docker files
 *.dockerfile
 

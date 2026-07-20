@@ -13,24 +13,44 @@ jobs:
     if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nikke_unionraid
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
         with:
-          python-version: '3.12'
-          cache: 'pip'
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
 
-      - name: Install dependencies
+      - name: Initialize database schema
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          docker run --rm --network host \
+            -v ${{ github.workspace }}/init.sql:/init.sql:ro \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d nikke_unionraid -f /init.sql
 
-      - name: Run tests
-        run: pytest -q
+      - name: Run Gradle tests
+        working-directory: kotlin
+        env:
+          DATABASE_URL: jdbc:postgresql://localhost:5432/nikke_unionraid
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        run: ./gradlew test --no-daemon -q

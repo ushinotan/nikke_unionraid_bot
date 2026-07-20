@@ -14,18 +14,6 @@ if command -v git >/dev/null && [ -z "$(git config --global user.email 2>/dev/nu
   [ -n "$HOST_NAME" ] && git config --global user.name "$HOST_NAME"
 fi
 
-if [ -f requirements.txt ]; then
-  echo "[postCreate] Installing Python dependencies..."
-  pip3 install --user -r requirements.txt
-fi
-
-if [ -f go/go.mod ]; then
-  echo "[postCreate] Downloading Go modules..."
-  cd go
-  go mod download
-  cd /workspaces/nikke_unionraid_bot
-fi
-
 if [ -f kotlin/build.gradle.kts ]; then
   echo "[postCreate] Checking Gradle project..."
   cd kotlin
@@ -34,8 +22,6 @@ if [ -f kotlin/build.gradle.kts ]; then
 fi
 
 echo "[postCreate] Tool versions"
-python3 --version || true
-go version || true
 java -version || true
 kotlinc -version || true
 ./kotlin/gradlew --version || true
