@@ -10,6 +10,7 @@ import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.components.actionrow.ActionRow
 import net.dv8tion.jda.api.components.buttons.Button
 import net.dv8tion.jda.api.entities.Message
+import net.dv8tion.jda.api.entities.Message.MentionType
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -158,6 +159,7 @@ class RaidNotificationScheduler(
 
         logger.info("通知送信を開始: raidId=$raidId channelId=$channelId")
         channel.sendMessage("@everyone")
+            .setAllowedMentions(setOf(MentionType.EVERYONE))
             .addEmbeds(embed)
             .addComponents(ActionRow.of(Button.primary("raid_report", "報告")))
             .queue(
