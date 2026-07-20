@@ -163,8 +163,7 @@ class UnionRaidEventListener(
         val percentage = event.getOption("パーセンテージ")?.asDouble
             ?.let { BigDecimal.valueOf(it).setScale(2, RoundingMode.HALF_UP) }
 
-        val now = TimeUtils.utcNow()
-        val activeRaid = unionRaidRepository.findActiveUnionRaidByGuildId(guildId, now)
+        val activeRaid = unionRaidRepository.findActiveUnionRaidByGuildId(guildId)
         if (activeRaid == null) {
             event.hook.sendMessage("進行中のレイドが見つかりません。").setEphemeral(true).queue()
             return
@@ -178,7 +177,8 @@ class UnionRaidEventListener(
 
         result.onSuccess { updatedCount ->
             if (updatedCount == 0L) {
-                event.hook.sendMessage("レイドの終了処理に失敗しました。再度お試しください。").setEphemeral(true).queue()
+                scheduler.cleanupAfterRaidEnd(guildId, activeRaid.id)
+                event.hook.sendMessage("このレイドは既に終了済みだわ。").setEphemeral(true).queue()
                 return@onSuccess
             }
             val aggregation = raidDomainService.aggregateRaidResults(activeRaid.id)
@@ -190,9 +190,7 @@ class UnionRaidEventListener(
             embed.addField("ノーマル 3凸", aggregation.normalUsers.joinToString("\n").ifEmpty { "なし" }, false)
             embed.addField("ハード 3凸", aggregation.hardUsers.joinToString("\n").ifEmpty { "なし" }, false)
 
-            scheduler.cancelNotification(guildId, activeRaid.id)
-            scheduler.cancelAutoEnd(activeRaid.id)
-            scheduler.removeMessage(activeRaid.id)
+            scheduler.cleanupAfterRaidEnd(guildId, activeRaid.id)
 
             event.hook.sendMessage("人間、今回もおつかれさま。").addEmbeds(embed.build()).queue()
         }.onFailure { error ->

@@ -15,15 +15,12 @@ class UnionRaidRepository (
 
     /**
      * 指定されたギルドIDに基づき、現在有効なユニオンレイド情報を検索します。
+     * 進行中判定は `finished_at IS NULL` です。
      *
      * @param guildId 検索対象のギルドのID
-     * @param now 現在時刻として使用するオフセット日時。デフォルトは `OffsetDateTime.now()`。
      * @return 指定された条件に一致する有効な `UnionRaid`。存在しない場合は `null`。
      */
-    fun findActiveUnionRaidByGuildId(
-        guildId: Long,
-        now: OffsetDateTime = OffsetDateTime.now(),
-    ): UnionRaid? {
+    fun findActiveUnionRaidByGuildId(guildId: Long): UnionRaid? {
         val query = QueryDsl.from(unionRaidTable)
             .where {
                 unionRaidTable.guildId eq guildId
@@ -50,6 +47,7 @@ class UnionRaidRepository (
 
     /**
      * 通知時刻が設定されており、まだ終了していないユニオンレイド一覧を取得します。
+     * 終了予定時刻を過ぎたレイドは開始通知の対象外とします。
      *
      * @param now 現在時刻として使用するオフセット日時。デフォルトは `OffsetDateTime.now()`。
      * @return 通知対象の `UnionRaid` 一覧。存在しない場合は空のリスト。
@@ -61,6 +59,7 @@ class UnionRaidRepository (
             .where {
                 unionRaidTable.notifyTime.isNotNull()
                 unionRaidTable.finishedAt.isNull()
+                unionRaidTable.endTime greater now
             }
 
         return database.runQuery(query)

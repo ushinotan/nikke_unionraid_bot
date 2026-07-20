@@ -38,10 +38,7 @@ open class UnionRaidRepositoryIntegrationTest(
             )
         )
 
-        val found = unionRaidRepository.findActiveUnionRaidByGuildId(
-            guildId = guildId,
-            now = now,
-        )
+        val found = unionRaidRepository.findActiveUnionRaidByGuildId(guildId = guildId)
 
         assertTrue(created.id > 0)
         assertNotNull(found)
@@ -69,10 +66,7 @@ open class UnionRaidRepositoryIntegrationTest(
             )
         )
 
-        val found = unionRaidRepository.findActiveUnionRaidByGuildId(
-            guildId = guildId,
-            now = now,
-        )
+        val found = unionRaidRepository.findActiveUnionRaidByGuildId(guildId = guildId)
 
         assertNull(found)
     }
@@ -96,10 +90,7 @@ open class UnionRaidRepositoryIntegrationTest(
             )
         )
 
-        val found = unionRaidRepository.findActiveUnionRaidByGuildId(
-            guildId = guildId,
-            now = now,
-        )
+        val found = unionRaidRepository.findActiveUnionRaidByGuildId(guildId = guildId)
 
         assertNotNull(found)
         assertEquals(created.id, found?.id)
@@ -165,6 +156,30 @@ open class UnionRaidRepositoryIntegrationTest(
     }
 
     @Test
+    fun `終了時刻超過の未終了レイドは通知対象に含まれない`() {
+        val guildId = 20_000_008L
+        val now = OffsetDateTime.now()
+
+        guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
+
+        val overdue = unionRaidRepository.insertUnionRaid(
+            UnionRaid(
+                guildId = guildId,
+                raidName = "test-overdue-notifiable",
+                startTime = now.minusHours(2),
+                endTime = now.minusMinutes(1),
+                notifyTime = now.minusHours(1),
+                channelId = 30_000_008L,
+                createdAt = now,
+            )
+        )
+
+        val raids = unionRaidRepository.findNotifiableActiveUnionRaids(now)
+
+        assertTrue(raids.none { it.id == overdue.id })
+    }
+
+    @Test
     fun `notifyTimeをクリアできる`() {
         val guildId = 20_000_004L
         val now = OffsetDateTime.now()
@@ -217,10 +232,7 @@ open class UnionRaidRepositoryIntegrationTest(
             percentage = BigDecimal("45.67"),
         )
 
-        val activeRaid = unionRaidRepository.findActiveUnionRaidByGuildId(
-            guildId = guildId,
-            now = finishTime,
-        )
+        val activeRaid = unionRaidRepository.findActiveUnionRaidByGuildId(guildId = guildId)
         val finished = unionRaidRepository.findUnionRaidById(created.id)
 
         assertEquals(1L, updatedCount)

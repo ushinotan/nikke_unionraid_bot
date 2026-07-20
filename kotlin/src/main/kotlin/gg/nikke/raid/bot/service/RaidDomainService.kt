@@ -53,7 +53,7 @@ class RaidDomainService(
             return Result.failure(RaidDomainError.DurationTooShort)
         }
 
-        if (unionRaidRepository.findActiveUnionRaidByGuildId(guildId, now) != null) {
+        if (unionRaidRepository.findActiveUnionRaidByGuildId(guildId) != null) {
             return Result.failure(RaidDomainError.ActiveRaidAlreadyExists)
         }
 
