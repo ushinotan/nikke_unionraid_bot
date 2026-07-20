@@ -142,13 +142,15 @@ class RaidNotificationScheduler(
         val raid = unionRaidRepository.findUnionRaidById(raidId)
         if (raid == null || raid.finishedAt != null) {
             logger.info("通知をスキップしました（終了済みまたは未存在）: raidId=$raidId")
+            // If the raid is already finished by notification time, clear the pending flag.
             raid?.let { unionRaidRepository.clearNotifyTime(raidId) }
             return
         }
 
         val channel = resolveMessageChannel(jda, channelId) ?: run {
             logger.warn("通知チャンネルが見つかりません: channelId=$channelId raidId=$raidId")
-            unionRaidRepository.clearNotifyTime(raidId)
+            // Do not clear notify_time here. Leave it so the notification can be retried on restart
+            // (e.g. channel was temporarily unavailable or permissions were fixed).
             return
         }
         val embed = EmbedBuilder()
@@ -162,7 +164,6 @@ class RaidNotificationScheduler(
             .build()
 
         logger.info("通知送信を開始: raidId=$raidId channelId=$channelId")
-        unionRaidRepository.clearNotifyTime(raidId)
 
         val canMentionEveryone = (channel as? GuildMessageChannel)
             ?.guild?.selfMember?.hasPermission(Permission.MESSAGE_MENTION_EVERYONE) ?: false
@@ -175,10 +176,17 @@ class RaidNotificationScheduler(
         }
         action.queue(
             { message ->
+                // Only clear notify_time after we have confirmation the message was successfully sent.
+                // This allows retry on restart if sending fails (transient error, channel temporarily unavailable, etc.).
+                unionRaidRepository.clearNotifyTime(raidId)
                 notifyMessages[raidId] = message
                 logger.info("通知送信に成功: raidId=$raidId messageId=${message.idLong}")
             },
-            { e -> logger.error("通知送信中にエラーが発生しました: raidId=$raidId", e) },
+            { e ->
+                logger.error("通知送信中にエラーが発生しました: raidId=$raidId", e)
+                // Do not clear notify_time on failure so that the notification can be retried
+                // on bot restart via resumeSchedules().
+            },
         )
     }
 
