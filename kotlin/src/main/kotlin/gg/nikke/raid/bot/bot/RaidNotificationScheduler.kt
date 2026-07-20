@@ -10,6 +10,7 @@ import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.components.actionrow.ActionRow
 import net.dv8tion.jda.api.components.buttons.Button
 import net.dv8tion.jda.api.entities.Message
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.awt.Color
@@ -37,8 +38,9 @@ class RaidNotificationScheduler(
 
     fun resumeSchedules(jda: JDA) {
         val now = TimeUtils.utcNow()
-
-        unionRaidRepository.findNotifiableActiveUnionRaids(now).forEach { raid ->
+        val notifiable = unionRaidRepository.findNotifiableActiveUnionRaids(now)
+        logger.info("通知スケジュール再開対象: ${notifiable.size}件")
+        notifiable.forEach { raid ->
             val delaySeconds = maxOf(0L, TimeUtils.secondsUntil(raid.notifyTime!!, now))
             scheduleNotification(
                 guildId = raid.guildId,
@@ -50,7 +52,9 @@ class RaidNotificationScheduler(
             )
         }
 
-        unionRaidRepository.findUnfinishedUnionRaids().forEach { raid ->
+        val unfinished = unionRaidRepository.findUnfinishedUnionRaids()
+        logger.info("自動終了スケジュール再開対象: ${unfinished.size}件")
+        unfinished.forEach { raid ->
             val delaySeconds = maxOf(0L, TimeUtils.secondsUntil(raid.endTime, now))
             scheduleAutoEnd(
                 guildId = raid.guildId,
@@ -71,7 +75,18 @@ class RaidNotificationScheduler(
         delaySeconds: Long,
         jda: JDA,
     ) {
-        if (scheduledNotifyTasks.containsKey(guildId)) return
+        // 同一ギルドの古い予定は置き換える（握りつぶしだと後続レイドの通知が永久に飛ぶ）
+        scheduledNotifyTasks.remove(guildId)?.future?.cancel(false)
+
+        val safeDelay = maxOf(0L, delaySeconds)
+        // delay=0 だと schedule 完了前にタスクが走り、finally が map 未登録のまま残る競合が起きる
+        if (safeDelay == 0L) {
+            logger.info("通知を即時実行: raidId=$raidId guildId=$guildId channelId=$channelId")
+            executor.execute {
+                sendNotification(jda, raidId, channelId, startTimeEpoch)
+            }
+            return
+        }
 
         val future = executor.schedule({
             try {
@@ -81,9 +96,10 @@ class RaidNotificationScheduler(
                     if (task.raidId == raidId) null else task
                 }
             }
-        }, delaySeconds, TimeUnit.SECONDS)
+        }, safeDelay, TimeUnit.SECONDS)
 
         scheduledNotifyTasks[guildId] = ScheduledRaidTask(raidId, future)
+        logger.info("通知をスケジュール: raidId=$raidId guildId=$guildId delaySeconds=$safeDelay")
     }
 
     fun scheduleAutoEnd(
@@ -94,17 +110,19 @@ class RaidNotificationScheduler(
         delaySeconds: Long,
         jda: JDA,
     ) {
-        if (scheduledAutoEndTasks.containsKey(raidId)) return
+        scheduledAutoEndTasks.remove(raidId)?.cancel(false)
 
+        val safeDelay = maxOf(0L, delaySeconds)
         val future = executor.schedule({
             try {
                 autoEndRaid(jda, guildId, raidId, channelId, raidName)
             } finally {
                 scheduledAutoEndTasks.remove(raidId)
             }
-        }, delaySeconds, TimeUnit.SECONDS)
+        }, safeDelay, TimeUnit.SECONDS)
 
         scheduledAutoEndTasks[raidId] = future
+        logger.info("自動終了をスケジュール: raidId=$raidId guildId=$guildId delaySeconds=$safeDelay")
     }
 
     private fun sendNotification(
@@ -113,8 +131,8 @@ class RaidNotificationScheduler(
         channelId: Long,
         startTimeEpoch: Long,
     ) {
-        val channel = jda.getTextChannelById(channelId) ?: run {
-            logger.warn("通知チャンネルが見つかりません: channelId=$channelId")
+        val channel = resolveMessageChannel(jda, channelId) ?: run {
+            logger.warn("通知チャンネルが見つかりません: channelId=$channelId raidId=$raidId")
             return
         }
         val embed = EmbedBuilder()
@@ -127,15 +145,26 @@ class RaidNotificationScheduler(
             .addField("ハード 3凸", "なし", false)
             .build()
 
+        logger.info("通知送信を開始: raidId=$raidId channelId=$channelId")
         channel.sendMessageEmbeds(embed)
             .addComponents(ActionRow.of(Button.primary("raid_report", "報告")))
             .queue(
                 { message ->
                     notifyMessages[raidId] = message
                     unionRaidRepository.clearNotifyTime(raidId)
+                    logger.info("通知送信に成功: raidId=$raidId messageId=${message.idLong}")
                 },
                 { e -> logger.error("通知送信中にエラーが発生しました: raidId=$raidId", e) },
             )
+    }
+
+    private fun resolveMessageChannel(jda: JDA, channelId: Long): MessageChannel? {
+        jda.getTextChannelById(channelId)?.let { return it }
+        jda.getChannelById(MessageChannel::class.java, channelId)?.let { return it }
+        for (guild in jda.guilds) {
+            guild.getTextChannelById(channelId)?.let { return it }
+        }
+        return null
     }
 
     private fun autoEndRaid(
