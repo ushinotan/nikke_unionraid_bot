@@ -157,7 +157,8 @@ class RaidNotificationScheduler(
             .build()
 
         logger.info("通知送信を開始: raidId=$raidId channelId=$channelId")
-        channel.sendMessageEmbeds(embed)
+        channel.sendMessage("@everyone")
+            .addEmbeds(embed)
             .addComponents(ActionRow.of(Button.primary("raid_report", "報告")))
             .queue(
                 { message ->
