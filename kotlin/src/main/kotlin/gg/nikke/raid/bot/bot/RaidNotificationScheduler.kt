@@ -2,6 +2,7 @@ package gg.nikke.raid.bot.bot
 
 import gg.nikke.raid.bot.repository.RaidReportRepository
 import gg.nikke.raid.bot.repository.UnionRaidRepository
+import gg.nikke.raid.bot.service.RaidDomainService
 import gg.nikke.raid.bot.util.TimeUtils
 import jakarta.annotation.PreDestroy
 import net.dv8tion.jda.api.EmbedBuilder
@@ -9,6 +10,7 @@ import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.components.actionrow.ActionRow
 import net.dv8tion.jda.api.components.buttons.Button
 import net.dv8tion.jda.api.entities.Message
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.awt.Color
@@ -21,21 +23,44 @@ import java.util.concurrent.TimeUnit
 class RaidNotificationScheduler(
     private val unionRaidRepository: UnionRaidRepository,
     private val raidReportRepository: RaidReportRepository,
+    private val raidDomainService: RaidDomainService,
 ) {
     private val logger = LoggerFactory.getLogger(RaidNotificationScheduler::class.java)
     private val executor = Executors.newScheduledThreadPool(4)
-    private val scheduledTasks = ConcurrentHashMap<Long, ScheduledFuture<*>>()
+    private val scheduledNotifyTasks = ConcurrentHashMap<Long, ScheduledRaidTask>()
+    private val scheduledAutoEndTasks = ConcurrentHashMap<Int, ScheduledFuture<*>>()
     private val notifyMessages = ConcurrentHashMap<Int, Message>()
+
+    private data class ScheduledRaidTask(
+        val raidId: Int,
+        val future: ScheduledFuture<*>,
+    )
 
     fun resumeSchedules(jda: JDA) {
         val now = TimeUtils.utcNow()
-        unionRaidRepository.findNotifiableActiveUnionRaids(now).forEach { raid ->
+        val notifiable = unionRaidRepository.findNotifiableActiveUnionRaids(now)
+        logger.info("通知スケジュール再開対象: ${notifiable.size}件")
+        notifiable.forEach { raid ->
             val delaySeconds = maxOf(0L, TimeUtils.secondsUntil(raid.notifyTime!!, now))
             scheduleNotification(
                 guildId = raid.guildId,
                 raidId = raid.id,
                 channelId = raid.channelId,
                 startTimeEpoch = raid.startTime.toEpochSecond(),
+                delaySeconds = delaySeconds,
+                jda = jda,
+            )
+        }
+
+        val unfinished = unionRaidRepository.findUnfinishedUnionRaids()
+        logger.info("自動終了スケジュール再開対象: ${unfinished.size}件")
+        unfinished.forEach { raid ->
+            val delaySeconds = maxOf(0L, TimeUtils.secondsUntil(raid.endTime, now))
+            scheduleAutoEnd(
+                guildId = raid.guildId,
+                raidId = raid.id,
+                channelId = raid.channelId,
+                raidName = raid.raidName,
                 delaySeconds = delaySeconds,
                 jda = jda,
             )
@@ -50,17 +75,59 @@ class RaidNotificationScheduler(
         delaySeconds: Long,
         jda: JDA,
     ) {
-        if (scheduledTasks.containsKey(guildId)) return
+        // 同一ギルドの古い予定は置き換える（握りつぶしだと後続レイドの通知が永久に飛ぶ）
+        scheduledNotifyTasks.remove(guildId)?.future?.cancel(false)
+
+        val safeDelay = maxOf(0L, delaySeconds)
+        // delay=0 だと schedule 完了前にタスクが走り、finally が map 未登録のまま残る競合が起きる
+        if (safeDelay == 0L) {
+            logger.info("通知を即時実行: raidId=$raidId guildId=$guildId channelId=$channelId")
+            executor.execute {
+                sendNotification(jda, raidId, channelId, startTimeEpoch)
+            }
+            return
+        }
 
         val future = executor.schedule({
             try {
                 sendNotification(jda, raidId, channelId, startTimeEpoch)
             } finally {
-                scheduledTasks.remove(guildId)
+                scheduledNotifyTasks.computeIfPresent(guildId) { _, task ->
+                    if (task.raidId == raidId) null else task
+                }
             }
-        }, delaySeconds, TimeUnit.SECONDS)
+        }, safeDelay, TimeUnit.SECONDS)
 
-        scheduledTasks[guildId] = future
+        scheduledNotifyTasks[guildId] = ScheduledRaidTask(raidId, future)
+        logger.info("通知をスケジュール: raidId=$raidId guildId=$guildId delaySeconds=$safeDelay")
+    }
+
+    fun scheduleAutoEnd(
+        guildId: Long,
+        raidId: Int,
+        channelId: Long,
+        raidName: String,
+        delaySeconds: Long,
+        jda: JDA,
+    ) {
+        scheduledAutoEndTasks.remove(raidId)?.cancel(false)
+
+        val safeDelay = maxOf(0L, delaySeconds)
+        if (safeDelay == 0L) {
+            logger.info("自動終了を即時実行: raidId=$raidId guildId=$guildId")
+            executor.execute {
+                autoEndRaid(jda, guildId, raidId, channelId, raidName)
+            }
+            return
+        }
+
+        // 成功時は cleanup、失敗時はリトライ予約が map を更新するため finally では消さない
+        val future = executor.schedule({
+            autoEndRaid(jda, guildId, raidId, channelId, raidName)
+        }, safeDelay, TimeUnit.SECONDS)
+
+        scheduledAutoEndTasks[raidId] = future
+        logger.info("自動終了をスケジュール: raidId=$raidId guildId=$guildId delaySeconds=$safeDelay")
     }
 
     private fun sendNotification(
@@ -69,8 +136,14 @@ class RaidNotificationScheduler(
         channelId: Long,
         startTimeEpoch: Long,
     ) {
-        val channel = jda.getTextChannelById(channelId) ?: run {
-            logger.warn("通知チャンネルが見つかりません: channelId=$channelId")
+        val raid = unionRaidRepository.findUnionRaidById(raidId)
+        if (raid == null || raid.finishedAt != null) {
+            logger.info("通知をスキップしました（終了済みまたは未存在）: raidId=$raidId")
+            return
+        }
+
+        val channel = resolveMessageChannel(jda, channelId) ?: run {
+            logger.warn("通知チャンネルが見つかりません: channelId=$channelId raidId=$raidId")
             return
         }
         val embed = EmbedBuilder()
@@ -83,19 +156,127 @@ class RaidNotificationScheduler(
             .addField("ハード 3凸", "なし", false)
             .build()
 
+        logger.info("通知送信を開始: raidId=$raidId channelId=$channelId")
         channel.sendMessageEmbeds(embed)
             .addComponents(ActionRow.of(Button.primary("raid_report", "報告")))
             .queue(
                 { message ->
                     notifyMessages[raidId] = message
                     unionRaidRepository.clearNotifyTime(raidId)
+                    logger.info("通知送信に成功: raidId=$raidId messageId=${message.idLong}")
                 },
                 { e -> logger.error("通知送信中にエラーが発生しました: raidId=$raidId", e) },
             )
     }
 
-    fun cancelNotification(guildId: Long) {
-        scheduledTasks.remove(guildId)?.cancel(false)
+    private fun resolveMessageChannel(jda: JDA, channelId: Long): MessageChannel? {
+        jda.getTextChannelById(channelId)?.let { return it }
+        jda.getChannelById(MessageChannel::class.java, channelId)?.let { return it }
+        for (guild in jda.guilds) {
+            guild.getTextChannelById(channelId)?.let { return it }
+        }
+        return null
+    }
+
+    private fun autoEndRaid(
+        jda: JDA,
+        guildId: Long,
+        raidId: Int,
+        channelId: Long,
+        raidName: String,
+    ) {
+        val result = runCatching {
+            raidDomainService.finishRaid(raidId = raidId)
+        }.getOrElse { error ->
+            logger.error("レイド自動終了中に例外が発生しました: raidId=$raidId", error)
+            rescheduleAutoEndRetry(jda, guildId, raidId, channelId, raidName)
+            return
+        }
+
+        result.onSuccess { updatedCount ->
+            if (updatedCount == 0L) {
+                logger.info("自動終了をスキップしました（既に終了済み）: raidId=$raidId")
+                cleanupAfterRaidEnd(guildId, raidId)
+                return@onSuccess
+            }
+
+            val aggregation = raidDomainService.aggregateRaidResults(raidId)
+            val embed = EmbedBuilder()
+                .setTitle("レイド $raidName の終了報告")
+                .setDescription("予定時刻になったため、自動で終了したわ。")
+                .setColor(Color(0xFEE75C))
+                .addField("ノーマル 3凸", aggregation.normalUsers.joinToString("\n").ifEmpty { "なし" }, false)
+                .addField("ハード 3凸", aggregation.hardUsers.joinToString("\n").ifEmpty { "なし" }, false)
+                .build()
+
+            val channel = resolveMessageChannel(jda, channelId)
+            if (channel == null) {
+                logger.warn("自動終了の通知チャンネルが見つかりません: channelId=$channelId raidId=$raidId")
+            } else {
+                channel.sendMessage("人間、今回もおつかれさま。")
+                    .addEmbeds(embed)
+                    .queue(
+                        null,
+                        { e -> logger.error("自動終了メッセージ送信中にエラーが発生しました: raidId=$raidId", e) },
+                    )
+            }
+
+            cleanupAfterRaidEnd(guildId, raidId)
+            logger.info("レイドを自動終了しました: raidId=$raidId guildId=$guildId")
+        }.onFailure { error ->
+            logger.error("レイド自動終了中にエラーが発生しました: raidId=$raidId", error)
+            rescheduleAutoEndRetry(jda, guildId, raidId, channelId, raidName)
+        }
+    }
+
+    private fun rescheduleAutoEndRetry(
+        jda: JDA,
+        guildId: Long,
+        raidId: Int,
+        channelId: Long,
+        raidName: String,
+    ) {
+        // 未終了のまま放置すると新規作成がブロックされるため、短時間後に再試行する
+        logger.info(
+            "自動終了をリトライ予約: raidId=$raidId delaySeconds=$AUTO_END_RETRY_DELAY_SECONDS",
+        )
+        scheduleAutoEnd(
+            guildId = guildId,
+            raidId = raidId,
+            channelId = channelId,
+            raidName = raidName,
+            delaySeconds = AUTO_END_RETRY_DELAY_SECONDS,
+            jda = jda,
+        )
+    }
+
+    /**
+     * 報告ボタン無効化。
+     * 現状はインメモリの通知メッセージに依存するため、再起動後は no-op になる（将来 messageId 永続化で改善予定）。
+     */
+    fun disableReportButton(raidId: Int) {
+        val message = notifyMessages[raidId] ?: return
+        message.editMessageComponents().queue(
+            null,
+            { e -> logger.warn("報告ボタン無効化に失敗しました: raidId=$raidId", e) },
+        )
+    }
+
+    fun cleanupAfterRaidEnd(guildId: Long, raidId: Int) {
+        disableReportButton(raidId)
+        cancelNotification(guildId, raidId)
+        cancelAutoEnd(raidId)
+        removeMessage(raidId)
+    }
+
+    fun cancelNotification(guildId: Long, raidId: Int? = null) {
+        val task = scheduledNotifyTasks[guildId] ?: return
+        if (raidId != null && task.raidId != raidId) return
+        scheduledNotifyTasks.remove(guildId)?.future?.cancel(false)
+    }
+
+    fun cancelAutoEnd(raidId: Int) {
+        scheduledAutoEndTasks.remove(raidId)?.cancel(false)
     }
 
     fun removeMessage(raidId: Int) {
@@ -135,5 +316,9 @@ class RaidNotificationScheduler(
     @PreDestroy
     fun shutdown() {
         executor.shutdownNow()
+    }
+
+    companion object {
+        private const val AUTO_END_RETRY_DELAY_SECONDS = 30L
     }
 }

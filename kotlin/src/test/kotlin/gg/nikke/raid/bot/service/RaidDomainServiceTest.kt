@@ -109,6 +109,11 @@ open class RaidDomainServiceTest(
         val result = raidDomainService.finishRaid(raidId = raid.id, ranking = 100)
 
         assertTrue(result.isSuccess)
+        assertEquals(1L, result.getOrThrow())
+
+        val second = raidDomainService.finishRaid(raidId = raid.id, ranking = 50)
+        assertTrue(second.isSuccess)
+        assertEquals(0L, second.getOrThrow())
     }
 
     @Test
