@@ -25,3 +25,11 @@ echo "[postCreate] Tool versions"
 java -version || true
 kotlinc -version || true
 ./kotlin/gradlew --version || true
+
+# Ensure DB schema (devcontainerではファイルbindが効かないためここで適用)
+echo "[postCreate] Ensuring database schema..."
+if docker exec nikke_unionraid_dev_db psql -U postgres -d nikke_unionraid -c '\dt' >/dev/null 2>&1; then
+  cat /workspaces/nikke_unionraid_bot/init.sql | docker exec -i nikke_unionraid_dev_db psql -U postgres -d nikke_unionraid -v ON_ERROR_STOP=1 || echo "[postCreate] Schema apply finished (errors ignored if tables existed)"
+else
+  echo "[postCreate] Dev DB not reachable yet, skipping schema init (will be applied on first bot run if using main compose)"
+fi
