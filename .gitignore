@@ -33,3 +33,6 @@ kotlin/gradle/wrapper/gradle-wrapper.jar
 # Spring Boot
 *.original
 HELP.md
+
+# Database backups (月次バックアップ用)
+backups/

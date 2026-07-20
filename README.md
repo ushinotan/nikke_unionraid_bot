@@ -46,15 +46,39 @@ docker-compose down
 docker-compose restart
 ```
 
-### データベースのバックアップ
+### データベースのバックアップ（手動）
 ```bash
-docker-compose exec db pg_dump -U postgres nikke_unionraid > backup.sql
+docker compose exec -T db pg_dump -U postgres nikke_unionraid | gzip > backup-$(date +%Y-%m-%d).sql.gz
 ```
 
 ### データベースのリストア
 ```bash
-docker-compose exec -T db psql -U postgres nikke_unionraid < backup.sql
+gunzip -c backup-YYYY-MM-DD.sql.gz | docker compose exec -T db psql -U postgres nikke_unionraid
 ```
+
+### 月次自動バックアップの設定（おすすめ）
+一ヶ月ごとにバックアップを自動取得するスクリプトを用意しています。
+
+1. スクリプトに実行権限を付与
+```bash
+chmod +x scripts/backup-db.sh
+```
+
+2. ホストマシンの crontab に登録（毎月1日の午前4時に実行する例）
+```bash
+crontab -e
+```
+
+以下を追加:
+```
+0 4 1 * * /絶対パス/nikke_unionraid_bot/scripts/backup-db.sh >> /var/log/nikke-backup.log 2>&1
+```
+
+- バックアップは `backups/backup-YYYY-MM-DD.sql.gz` として保存されます
+- 13ヶ月以上前のバックアップは自動削除されます
+- ログは `/var/log/nikke-backup.log` に残ります（必要に応じてパス変更可）
+
+> **注意**: Dev Container 利用時は、cron は**ホスト側**で設定してください。コンテナ内では永続化されません。
 
 ### ボットコンテナに入る
 ```bash
