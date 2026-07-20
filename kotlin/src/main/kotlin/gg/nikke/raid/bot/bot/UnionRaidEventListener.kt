@@ -53,9 +53,15 @@ class UnionRaidEventListener(
     }
 
     private fun handleRaidCreate(event: SlashCommandInteractionEvent, ageMs: Long = 0) {
-        // モーダル表示を最優先で即ack。期間バリデはモーダル側でやる（稀なケースなので）
         val rawDuration = event.getOption("期間時間")?.asLong?.toInt() ?: 24
-        val duration = if (rawDuration < 1) 24 else rawDuration
+        if (rawDuration < 1) {
+            event.reply("レイドの期間は1時間以上で指定してください。").setEphemeral(true).queue(
+                { logger.info("レイド作成: 無効な期間をエラー返却 (age=${ageMs}ms)") },
+                { e -> logger.warn("レイド作成エラー返却に失敗 (interaction age=${ageMs}ms)", e) },
+            )
+            return
+        }
+        val duration = rawDuration
         val defaultTime = TimeUtils.localNow(appConfig.defaultTimezoneHours).format(timeFormatter)
         val textInput = TextInput.create("start_time", TextInputStyle.SHORT)
             .setRequired(true)

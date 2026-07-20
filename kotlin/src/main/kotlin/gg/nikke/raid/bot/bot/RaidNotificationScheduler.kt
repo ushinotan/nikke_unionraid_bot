@@ -11,7 +11,9 @@ import net.dv8tion.jda.api.components.actionrow.ActionRow
 import net.dv8tion.jda.api.components.buttons.Button
 import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.entities.Message.MentionType
+import net.dv8tion.jda.api.entities.channel.middleman.GuildMessageChannel
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel
+import net.dv8tion.jda.api.Permission
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.awt.Color
@@ -140,11 +142,13 @@ class RaidNotificationScheduler(
         val raid = unionRaidRepository.findUnionRaidById(raidId)
         if (raid == null || raid.finishedAt != null) {
             logger.info("通知をスキップしました（終了済みまたは未存在）: raidId=$raidId")
+            raid?.let { unionRaidRepository.clearNotifyTime(raidId) }
             return
         }
 
         val channel = resolveMessageChannel(jda, channelId) ?: run {
             logger.warn("通知チャンネルが見つかりません: channelId=$channelId raidId=$raidId")
+            unionRaidRepository.clearNotifyTime(raidId)
             return
         }
         val embed = EmbedBuilder()
@@ -158,18 +162,24 @@ class RaidNotificationScheduler(
             .build()
 
         logger.info("通知送信を開始: raidId=$raidId channelId=$channelId")
-        channel.sendMessage("@everyone")
-            .setAllowedMentions(setOf(MentionType.EVERYONE))
+        unionRaidRepository.clearNotifyTime(raidId)
+
+        val canMentionEveryone = (channel as? GuildMessageChannel)
+            ?.guild?.selfMember?.hasPermission(Permission.MESSAGE_MENTION_EVERYONE) ?: false
+        val content = if (canMentionEveryone) "@everyone" else ""
+        val action = channel.sendMessage(content)
             .addEmbeds(embed)
             .addComponents(ActionRow.of(Button.primary("raid_report", "報告")))
-            .queue(
-                { message ->
-                    notifyMessages[raidId] = message
-                    unionRaidRepository.clearNotifyTime(raidId)
-                    logger.info("通知送信に成功: raidId=$raidId messageId=${message.idLong}")
-                },
-                { e -> logger.error("通知送信中にエラーが発生しました: raidId=$raidId", e) },
-            )
+        if (canMentionEveryone) {
+            action.setAllowedMentions(setOf(MentionType.EVERYONE))
+        }
+        action.queue(
+            { message ->
+                notifyMessages[raidId] = message
+                logger.info("通知送信に成功: raidId=$raidId messageId=${message.idLong}")
+            },
+            { e -> logger.error("通知送信中にエラーが発生しました: raidId=$raidId", e) },
+        )
     }
 
     private fun resolveMessageChannel(jda: JDA, channelId: Long): MessageChannel? {
