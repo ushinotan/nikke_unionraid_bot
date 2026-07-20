@@ -98,11 +98,9 @@ docker-compose logs -f db
 - **ユーザー向け表示**: `DEFAULT_TIMEZONE_HOURS` で指定したオフセットのタイムゾーンで表示する（デフォルト: JST = UTC+9）
 - **通知待機**: `notify_time`（UTC）と現在時刻（UTC）の差分で待機秒数を算出する。`notify_time` が過去の場合は即時通知する
 
-詳細な仕様は [go/docs/go-migration-definition-of-done.md](go/docs/go-migration-definition-of-done.md) を参照してください。
+## Dev Container での開発（Kotlin）
 
-## Dev Container での開発（Python / Go / Kotlin）
-
-このリポジトリは `.devcontainer/` 設定で、Python・Go・Kotlin を同じ開発コンテナで扱えます。
+このリポジトリのメイン実装は Kotlin です。`.devcontainer/` 設定で Kotlin 開発に必要なツールが揃います。
 
 ### 1. VS Code でコンテナを起動
 1. VS Code でリポジトリを開く
@@ -110,14 +108,10 @@ docker-compose logs -f db
 
 ### 2. 初回セットアップ
 コンテナ起動時に `postCreateCommand` が実行され、以下を自動セットアップします。
-- Python 依存 (`requirements.txt`)
-- Go モジュール (`go/go.mod`)
-- Kotlin/Gradle 動作確認 (`kotlin/build.gradle.kts` がある場合)
+- Kotlin/Gradle 動作確認 (`kotlin/build.gradle.kts` がある場合）
 
 ### 3. ツール確認
 コンテナ内で以下が利用可能です。
-- Python 3
-- Go
 - OpenJDK 21
 - Kotlin compiler (`kotlinc`)
 - Gradle

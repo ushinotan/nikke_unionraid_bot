@@ -5,11 +5,10 @@ services:
       dockerfile: Dockerfile
     container_name: nikke_unionraid_bot
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      - DISCORD_TOKEN=${DISCORD_TOKEN:-}
       - DATABASE_URL=jdbc:postgresql://${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-nikke_unionraid}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB:-nikke_unionraid}
       - POSTGRES_HOST=${POSTGRES_HOST:-db}
       - POSTGRES_PORT=${POSTGRES_PORT:-5432}
@@ -26,13 +25,15 @@ services:
     image: postgres:16-alpine
     container_name: nikke_unionraid_db
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB:-nikke_unionraid}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      # Note: schema is applied by the bot container on startup via psql (see Dockerfile)
+      # We avoid bind-mounting init.sql here because in some dev setups (devcontainer + docker-outside-of-docker)
+      # file bind mounts resolve as directories on the Docker host, causing "Is a directory" errors.
     ports:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
     healthcheck:

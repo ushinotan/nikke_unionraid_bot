@@ -44,18 +44,24 @@ class UnionRaidEventListener(
     private val timeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
     override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
+        val ageMs = java.time.Duration.between(event.timeCreated, java.time.OffsetDateTime.now()).toMillis()
+        logger.debug("onSlashCommandInteraction: name=${event.name}, age=${ageMs}ms")
         when (event.name) {
-            "レイド作成" -> handleRaidCreate(event)
+            "レイド作成" -> handleRaidCreate(event, ageMs)
             "レイド終了" -> handleRaidEnd(event)
         }
     }
 
-    private fun handleRaidCreate(event: SlashCommandInteractionEvent) {
-        val duration = event.getOption("期間時間")?.asLong?.toInt() ?: 24
-        if (duration < 1) {
-            event.reply("レイドの期間は1時間以上で指定してください。").setEphemeral(true).queue()
+    private fun handleRaidCreate(event: SlashCommandInteractionEvent, ageMs: Long = 0) {
+        val rawDuration = event.getOption("期間時間")?.asLong?.toInt() ?: 24
+        if (rawDuration < 1) {
+            event.reply("レイドの期間は1時間以上で指定してください。").setEphemeral(true).queue(
+                { logger.info("レイド作成: 無効な期間をエラー返却 (age=${ageMs}ms)") },
+                { e -> logger.warn("レイド作成エラー返却に失敗 (interaction age=${ageMs}ms)", e) },
+            )
             return
         }
+        val duration = rawDuration
         val defaultTime = TimeUtils.localNow(appConfig.defaultTimezoneHours).format(timeFormatter)
         val textInput = TextInput.create("start_time", TextInputStyle.SHORT)
             .setRequired(true)
@@ -64,13 +70,21 @@ class UnionRaidEventListener(
         val modal = Modal.create("raid_start_modal_$duration", "レイド開始設定")
             .addComponents(Label.of("開始時刻 (YYYY-MM-DD HH:MM JST)", textInput))
             .build()
-        event.replyModal(modal).queue()
+        event.replyModal(modal).queue(
+            { logger.info("レイド作成モーダル表示をキューイング (age=${ageMs}ms)") },
+            { e -> logger.warn("レイド作成モーダルの表示に失敗 (interaction age=${ageMs}ms)", e) },
+        )
     }
 
     override fun onModalInteraction(event: ModalInteractionEvent) {
         if (!event.modalId.startsWith("raid_start_modal_")) return
-        val duration = event.modalId.removePrefix("raid_start_modal_").toIntOrNull() ?: return
+        // まず即deferして3秒ルールを確実に守る
         event.deferReply().queue()
+        val duration = event.modalId.removePrefix("raid_start_modal_").toIntOrNull()
+        if (duration == null || duration < 1) {
+            event.hook.sendMessage("レイドの期間は1時間以上で指定してください。").setEphemeral(true).queue()
+            return
+        }
 
         val guildId = event.guild?.idLong
         if (guildId == null) {
