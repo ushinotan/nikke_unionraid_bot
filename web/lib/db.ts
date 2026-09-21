@@ -8,10 +8,11 @@ import { Pool, PoolConfig, QueryResult, QueryResultRow } from 'pg';
 
 /**
  * 環境変数から取得するDB接続設定
+ * リポジトリルートの env.example と完全に統一された環境変数名を使用
  */
 const dbConfig: PoolConfig = {
   host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
+  port: parseInt(process.env.POSTGRES_HOST_PORT || process.env.POSTGRES_PORT || '5432', 10),
   database: process.env.POSTGRES_DB || 'nikke_unionraid',
   user: process.env.POSTGRES_USER || 'postgres',
   password: process.env.POSTGRES_PASSWORD || '',

@@ -4,15 +4,16 @@
 
 ## 推奨セットアップ（将来: Issue #41）
 
-**Issue #41** で docker-compose に `web` サービスが追加される予定です。その際、以下の環境変数が docker-compose.yml から自動的に注入されるため、`web/.env` や `web/.env.local` ファイルは不要になります。
+**Issue #41** で docker-compose に `web` サービスが追加される予定です。その際、以下の環境変数が docker-compose.yml から自動的に注入されるため、個別の環境変数ファイルは不要になります。
 
 ```yaml
 # Issue #41 で追加予定の docker-compose 設定（例）
 services:
   web:
+    env_file:
+      - .env  # リポジトリルートの .env を使用
     environment:
       - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
       - POSTGRES_DB=${POSTGRES_DB:-nikke_unionraid}
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -26,26 +27,33 @@ Issue #41 が実装されるまでの間、ホストマシン上で直接 `npm r
 
 ### 必要な環境変数
 
-以下の環境変数を `web/.env.local` ファイルに記載します（`web/.env.example` を参照）。
+**リポジトリルートの `env.example` を参照し、`.env` ファイルを作成してください。**
+
+Web フロントエンドで必要な環境変数は以下の通りです（すべてルートの `env.example` に定義されています）:
 
 ```bash
-# PostgreSQL 接続設定（プロジェクトルートの .env と同じ値を使用）
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=nikke_unionraid
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_secure_password_here
+# PostgreSQL 接続設定
+POSTGRES_HOST=localhost          # ホスト側での開発時。docker-compose 使用時は 'db'
+POSTGRES_HOST_PORT=5432          # ポート番号
+POSTGRES_DB=nikke_unionraid      # データベース名
+POSTGRES_USER=postgres           # ユーザー名
+POSTGRES_PASSWORD=your_password  # パスワード
 ```
 
-**注意**: 環境変数名は docker-compose の `bot` サービスと統一されており、Issue #41 での移行時にほぼ変更不要です（`POSTGRES_HOST` のみ `localhost` → `db` に変更）。
+**注意**: 
+- 環境変数は**リポジトリルートの `.env`** から読み込まれます（Next.js が自動的に親ディレクトリの `.env` を参照）。
+- `web/` 配下に独自の `.env` ファイルを作成する必要はありません。
+- ホスト側での開発時のみ、`POSTGRES_HOST=localhost` を `.env` に追加してください（`env.example` にコメントアウトで記載されています）。
 
 ### 設定例
 
 ```bash
-# .env.local ファイルを作成（プロジェクトルートの .env から値をコピー）
-cd web
-cp .env.example .env.local
-# .env.local を編集して POSTGRES_PASSWORD などを設定
+# リポジトリルートで .env を作成（まだ存在しない場合）
+cp env.example .env
+
+# .env を編集して以下を設定:
+# 1. POSTGRES_PASSWORD を実際の値に変更
+# 2. POSTGRES_HOST=localhost の行をコメント解除（ホスト側での開発時のみ）
 ```
 
 ### 1. 依存パッケージのインストール
