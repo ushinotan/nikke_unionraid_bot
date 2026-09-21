@@ -36,3 +36,10 @@ HELP.md
 
 # Database backups (月次バックアップ用)
 backups/
+
+# Next.js
+web/.next/
+web/out/
+web/node_modules/
+web/.env*.local
+web/.vercel
