@@ -2,34 +2,51 @@
 
 このプロジェクトは [Next.js](https://nextjs.org) で構築された NIKKE ユニオンレイド Bot の Web フロントエンドです。
 
-## 必要な環境変数
+## 推奨セットアップ（将来: Issue #41）
 
-以下の環境変数を設定してください。ローカル開発では `web/.env.local` ファイルに記載します。
+**Issue #41** で docker-compose に `web` サービスが追加される予定です。その際、以下の環境変数が docker-compose.yml から自動的に注入されるため、`web/.env` や `web/.env.local` ファイルは不要になります。
+
+```yaml
+# Issue #41 で追加予定の docker-compose 設定（例）
+services:
+  web:
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-nikke_unionraid}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+```
+
+**docker-compose 経由での実行が長期的な推奨構成です。**
+
+## 現在の暫定セットアップ（ホスト側での npm run dev）
+
+Issue #41 が実装されるまでの間、ホストマシン上で直接 `npm run dev` を実行する場合は、以下の手順で環境変数を設定してください。
+
+### 必要な環境変数
+
+以下の環境変数を `web/.env.local` ファイルに記載します（`web/.env.example` を参照）。
 
 ```bash
 # PostgreSQL 接続設定（プロジェクトルートの .env と同じ値を使用）
-POSTGRES_HOST=localhost          # または 'db'（docker-compose 使用時）
-POSTGRES_PORT=5432
-POSTGRES_DB=nikke_unionraid
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_password_here
-```
-
-### 設定例
-
-```bash
-# .env.local ファイルを作成
-cd web
-cat > .env.local << 'EOF'
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=nikke_unionraid
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_password_here
-EOF
+POSTGRES_PASSWORD=your_secure_password_here
 ```
 
-## セットアップ
+**注意**: 環境変数名は docker-compose の `bot` サービスと統一されており、Issue #41 での移行時にほぼ変更不要です（`POSTGRES_HOST` のみ `localhost` → `db` に変更）。
+
+### 設定例
+
+```bash
+# .env.local ファイルを作成（プロジェクトルートの .env から値をコピー）
+cd web
+cp .env.example .env.local
+# .env.local を編集して POSTGRES_PASSWORD などを設定
+```
 
 ### 1. 依存パッケージのインストール
 
@@ -49,6 +66,7 @@ docker-compose up -d db
 ### 3. 開発サーバーの起動
 
 ```bash
+cd web
 npm run dev
 ```
 
