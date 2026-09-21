@@ -122,6 +122,33 @@ docker-compose logs -f db
 - **ユーザー向け表示**: `DEFAULT_TIMEZONE_HOURS` で指定したオフセットのタイムゾーンで表示する（デフォルト: JST = UTC+9）
 - **通知待機**: `notify_time`（UTC）と現在時刻（UTC）の差分で待機秒数を算出する。`notify_time` が過去の場合は即時通知する
 
+## Web フロントエンドの開発（Next.js）
+
+ユニオンレイドデータを表示する Web フロントエンドは `web/` ディレクトリにあります。
+
+### ローカル開発サーバーの起動
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+開発サーバーが起動したら、ブラウザで http://localhost:3000 にアクセスしてください。
+
+### その他のコマンド
+
+```bash
+# ビルド
+npm run build
+
+# 本番モードで起動
+npm run start
+
+# Lint
+npm run lint
+```
+
 ## Dev Container での開発（Kotlin）
 
 このリポジトリのメイン実装は Kotlin です。`.devcontainer/` 設定で Kotlin 開発に必要なツールが揃います。
