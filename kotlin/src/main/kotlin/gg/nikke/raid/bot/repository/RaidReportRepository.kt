@@ -38,6 +38,21 @@ class RaidReportRepository(
     }
 
     /**
+     * 指定したレイド ID に一致する全てのレイド報告を取得する。
+     *
+     * @param raidId レイド ID
+     * @return 指定したレイド ID に一致する `RaidReport` のリスト。存在しない場合は空のリスト
+     */
+    fun findAllRaidReportsByRaidId(raidId: Int): List<RaidReport> {
+        val query = QueryDsl.from(raidReportTable)
+            .where {
+                raidReportTable.raidId eq raidId
+            }
+
+        return database.runQuery(query)
+    }
+
+    /**
      * 指定したレイド ID に一致するレイド報告を取得する。
      * 3凸済み レポートのみを対象とする。
      *

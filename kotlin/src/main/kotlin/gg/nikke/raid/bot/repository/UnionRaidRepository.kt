@@ -2,6 +2,7 @@ package gg.nikke.raid.bot.repository
 
 import gg.nikke.raid.bot.entity.UnionRaid
 import org.komapper.core.dsl.QueryDsl
+import org.komapper.core.dsl.operator.desc
 import org.komapper.core.dsl.query.firstOrNull
 import org.komapper.jdbc.JdbcDatabase
 import org.springframework.stereotype.Repository
@@ -12,6 +13,22 @@ import java.time.OffsetDateTime
 class UnionRaidRepository (
     private val database: JdbcDatabase,
 ): KomapperMeta() {
+
+    /**
+     * 指定されたギルドIDに基づき、全てのユニオンレイド情報を取得します。
+     * 作成日時の降順でソートされます。
+     *
+     * @param guildId 検索対象のギルドのID
+     * @return 指定されたギルドのユニオンレイド一覧
+     */
+    fun findUnionRaidsByGuildId(guildId: Long): List<UnionRaid> {
+        val query = QueryDsl.from(unionRaidTable)
+            .where {
+                unionRaidTable.guildId eq guildId
+            }
+            .orderBy(unionRaidTable.createdAt.desc())
+        return database.runQuery(query)
+    }
 
     /**
      * 指定されたギルドIDに基づき、現在有効なユニオンレイド情報を検索します。
