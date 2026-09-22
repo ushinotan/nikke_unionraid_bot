@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 export interface SessionData {
   userId?: string;
   guildIds?: string[];
+  selectedGuildId?: string;
   state?: string;
 }
 
