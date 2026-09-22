@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { validateSnowflakeId } from "@/lib/backend-client";
 
 export async function GET() {
   try {
@@ -28,6 +29,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const validationError = validateSnowflakeId(guildId, "guildId");
+    if (validationError) {
+      return NextResponse.json(
+        { error: "BAD_REQUEST", message: validationError },
+        { status: 400 }
+      );
+    }
+
     const session = await getSession();
 
     if (!session.guildIds?.includes(guildId)) {
@@ -42,6 +51,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, selectedGuildId: guildId });
   } catch (error) {
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: "BAD_REQUEST", message: "Invalid JSON" },
+        { status: 400 }
+      );
+    }
+
     console.error("[Session] Failed to set selected guild:", error);
     return NextResponse.json(
       { error: "INTERNAL_ERROR", message: "Failed to set selected guild" },

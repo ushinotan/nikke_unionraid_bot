@@ -143,6 +143,14 @@ export async function GET(request: NextRequest) {
 
     session.userId = user.id;
     session.guildIds = intersectedGuildIds;
+
+    if (
+      session.selectedGuildId &&
+      !intersectedGuildIds.includes(session.selectedGuildId)
+    ) {
+      delete session.selectedGuildId;
+    }
+
     await session.save();
 
     return NextResponse.redirect(new URL("/raids", request.url));

@@ -82,11 +82,15 @@ export default function RaidsPage() {
         setRaidsLoading(true);
         setRaidsError(null);
 
-        await fetch("/api/session/selected-guild", {
+        const sessionResponse = await fetch("/api/session/selected-guild", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ guildId: selectedGuildId }),
         });
+
+        if (!sessionResponse.ok) {
+          console.warn("Failed to save selected guild to session");
+        }
 
         const response = await fetch(`/api/guilds/${selectedGuildId}/raids`);
         if (!response.ok) {
@@ -188,25 +192,27 @@ export default function RaidsPage() {
             NIKKE ユニオンレイド 戦績
           </h1>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3">
-              <label htmlFor="guild-select" className="text-slate-400 font-medium">
-                ギルド:
-              </label>
-              <select
-                id="guild-select"
-                value={selectedGuildId}
-                onChange={(e) => setSelectedGuildId(e.target.value)}
-                className="bg-[#2a2a2a] border border-slate-700 text-slate-200 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-[#333333] transition-colors"
-              >
-                {guilds.map((guild) => (
-                  <option key={guild.guildId} value={guild.guildId}>
-                    {guild.guildId}
-                  </option>
-                ))}
-              </select>
+          {guilds.length > 1 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <label htmlFor="guild-select" className="text-slate-400 font-medium">
+                  ギルド:
+                </label>
+                <select
+                  id="guild-select"
+                  value={selectedGuildId}
+                  onChange={(e) => setSelectedGuildId(e.target.value)}
+                  className="bg-[#2a2a2a] border border-slate-700 text-slate-200 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-[#333333] transition-colors"
+                >
+                  {guilds.map((guild) => (
+                    <option key={guild.guildId} value={guild.guildId}>
+                      {guild.guildId}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 

@@ -3,7 +3,7 @@ import { getIronSession } from "iron-session";
 import { sessionOptions, type SessionData } from "@/lib/session";
 
 const protectedPaths = ["/raids"];
-const protectedApiPaths = ["/api/guilds", "/api/raids"];
+const protectedApiPaths = ["/api/guilds", "/api/raids", "/api/session"];
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
