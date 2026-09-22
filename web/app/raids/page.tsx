@@ -10,7 +10,8 @@ export default function RaidsPage() {
   const [raids, setRaids] = useState<RaidSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [raidsLoading, setRaidsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [guildsError, setGuildsError] = useState<string | null>(null);
+  const [raidsError, setRaidsError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -18,7 +19,7 @@ export default function RaidsPage() {
     const fetchGuilds = async () => {
       try {
         setLoading(true);
-        setError(null);
+        setGuildsError(null);
         const response = await fetch("/api/guilds");
         if (!response.ok) {
           throw new Error("ギルド一覧の取得に失敗しました");
@@ -33,7 +34,7 @@ export default function RaidsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(
+          setGuildsError(
             err instanceof Error ? err.message : "予期しないエラーが発生しました"
           );
         }
@@ -61,7 +62,7 @@ export default function RaidsPage() {
     const fetchRaids = async () => {
       try {
         setRaidsLoading(true);
-        setError(null);
+        setRaidsError(null);
         const response = await fetch(`/api/guilds/${selectedGuildId}/raids`);
         if (!response.ok) {
           throw new Error("レイド一覧の取得に失敗しました");
@@ -73,7 +74,7 @@ export default function RaidsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(
+          setRaidsError(
             err instanceof Error ? err.message : "予期しないエラーが発生しました"
           );
         }
@@ -122,12 +123,12 @@ export default function RaidsPage() {
     );
   }
 
-  if (error) {
+  if (guildsError) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="bg-red-950/50 border border-red-900 rounded-lg p-6 max-w-md">
           <h2 className="text-red-400 text-xl font-bold mb-2">エラー</h2>
-          <p className="text-red-300">{error}</p>
+          <p className="text-red-300">{guildsError}</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-4 px-4 py-2 bg-red-900 hover:bg-red-800 text-white rounded transition-colors"
@@ -192,12 +193,43 @@ export default function RaidsPage() {
           <div className="text-center py-12 text-slate-400">
             読み込み中...
           </div>
+        ) : raidsError ? (
+          <div className="bg-red-950/50 border border-red-900 rounded-lg p-6">
+            <h3 className="text-red-400 text-lg font-bold mb-2">エラー</h3>
+            <p className="text-red-300 mb-4">{raidsError}</p>
+            <button
+              onClick={() => {
+                if (selectedGuildId) {
+                  setRaidsError(null);
+                  setRaidsLoading(true);
+                  fetch(`/api/guilds/${selectedGuildId}/raids`)
+                    .then((res) => {
+                      if (!res.ok) throw new Error("レイド一覧の取得に失敗しました");
+                      return res.json();
+                    })
+                    .then((data) => {
+                      setRaids(data.raids || []);
+                      setRaidsLoading(false);
+                    })
+                    .catch((err) => {
+                      setRaidsError(
+                        err instanceof Error ? err.message : "予期しないエラーが発生しました"
+                      );
+                      setRaidsLoading(false);
+                    });
+                }
+              }}
+              className="px-4 py-2 bg-red-900 hover:bg-red-800 text-white rounded transition-colors"
+            >
+              再読み込み
+            </button>
+          </div>
         ) : raids.length === 0 ? (
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center">
             <p className="text-slate-400">レイドが登録されていません</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-slate-800">
+          <div className="overflow-x-auto rounded-lg border border-slate-800">
             <table className="w-full">
               <thead className="bg-[#1a1a1a] border-b border-slate-800">
                 <tr>
