@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950">
@@ -10,24 +12,30 @@ export default function Home() {
             データフロントエンド
           </h2>
         </div>
-        
+
         <div className="mt-8 max-w-2xl space-y-4">
           <p className="text-lg text-slate-600 dark:text-slate-400">
             このページは NIKKE ユニオンレイドの戦績データを表示するフロントエンドアプリケーションです。
           </p>
-          <p className="text-base text-slate-500 dark:text-slate-500">
-            現在開発中です 🚧
-          </p>
+        </div>
+
+        <div className="mt-12 flex flex-col gap-4">
+          <Link
+            href="/raids"
+            className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg transition-colors text-lg"
+          >
+            レイド一覧を見る
+          </Link>
         </div>
 
         <div className="mt-12 px-8 py-6 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
           <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-200 mb-4">
-            実装予定機能
+            実装済み機能
           </h3>
           <ul className="text-left space-y-2 text-slate-600 dark:text-slate-400">
-            <li>• ユニオンレイド戦績の閲覧</li>
-            <li>• メンバー別スコアの表示</li>
-            <li>• 難易度別集計データの可視化</li>
+            <li>• ユニオンレイド一覧の閲覧</li>
+            <li>• ギルド選択</li>
+            <li>• レイドステータスの表示</li>
           </ul>
         </div>
       </main>
