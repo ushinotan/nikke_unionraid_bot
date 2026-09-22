@@ -19,29 +19,44 @@ export default function RaidDetailPage({ params }: { params: Params }) {
   }, [params]);
 
   useEffect(() => {
-    if (raidId) {
-      fetchRaidDetail();
+    if (!raidId) {
+      return;
     }
-  }, [raidId]);
 
-  const fetchRaidDetail = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch(`/api/raids/${raidId}`);
-      if (!response.ok) {
-        throw new Error("レイド詳細の取得に失敗しました");
+    let cancelled = false;
+
+    const fetchRaidDetail = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`/api/raids/${raidId}`);
+        if (!response.ok) {
+          throw new Error("レイド詳細の取得に失敗しました");
+        }
+        const json = await response.json();
+
+        if (!cancelled) {
+          setData(json);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "予期しないエラーが発生しました"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-      const json = await response.json();
-      setData(json);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "予期しないエラーが発生しました"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    fetchRaidDetail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [raidId]);
 
   if (loading) {
     return (

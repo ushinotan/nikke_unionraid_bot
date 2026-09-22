@@ -13,58 +13,83 @@ export default function RaidsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const fetchGuilds = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch("/api/guilds");
+        if (!response.ok) {
+          throw new Error("ギルド一覧の取得に失敗しました");
+        }
+        const data = await response.json();
+
+        if (!cancelled) {
+          setGuilds(data.guilds || []);
+          if (data.guilds && data.guilds.length > 0) {
+            setSelectedGuildId(data.guilds[0].guildId);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "予期しないエラーが発生しました"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchGuilds();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (selectedGuildId) {
-      fetchRaids(selectedGuildId);
-    } else {
-      setRaids([]);
+    if (!selectedGuildId) {
+      return;
     }
+
+    let cancelled = false;
+
+    const fetchRaids = async () => {
+      try {
+        setRaidsLoading(true);
+        setError(null);
+        const response = await fetch(`/api/guilds/${selectedGuildId}/raids`);
+        if (!response.ok) {
+          throw new Error("レイド一覧の取得に失敗しました");
+        }
+        const data = await response.json();
+
+        if (!cancelled) {
+          setRaids(data.raids || []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "予期しないエラーが発生しました"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setRaidsLoading(false);
+        }
+      }
+    };
+
+    fetchRaids();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedGuildId]);
-
-  const fetchGuilds = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch("/api/guilds");
-      if (!response.ok) {
-        throw new Error("ギルド一覧の取得に失敗しました");
-      }
-      const data = await response.json();
-      setGuilds(data.guilds || []);
-
-      if (data.guilds && data.guilds.length > 0) {
-        setSelectedGuildId(data.guilds[0].guildId);
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "予期しないエラーが発生しました"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchRaids = async (guildId: string) => {
-    try {
-      setRaidsLoading(true);
-      setError(null);
-      const response = await fetch(`/api/guilds/${guildId}/raids`);
-      if (!response.ok) {
-        throw new Error("レイド一覧の取得に失敗しました");
-      }
-      const data = await response.json();
-      setRaids(data.raids || []);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "予期しないエラーが発生しました"
-      );
-    } finally {
-      setRaidsLoading(false);
-    }
-  };
 
   const getRaidStatus = (raid: Raid): string => {
     if (raid.finishedAt) {
