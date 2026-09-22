@@ -4,6 +4,7 @@ import gg.nikke.raid.bot.entity.Guild
 import gg.nikke.raid.bot.entity.RaidParticipant
 import gg.nikke.raid.bot.entity.UnionRaid
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestConstructor
@@ -97,6 +98,7 @@ open class RaidParticipantRepositoryIntegrationTest(
     }
 
     @Test
+    @Disabled("Issue #54 - JDBC timezone handling causes 1-hour offset between test time and DB time")
     fun `同じraidIdとuserIdの参加者はupsertされ1行のまま`() {
         val guildId = 70_000_006L
         val now = OffsetDateTime.now()
