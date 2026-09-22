@@ -34,4 +34,22 @@ class RaidParticipantRepository(
 
         return database.runQuery(query)
     }
+
+    /**
+     * レイド参加者を登録する。既に同じレイド ID とユーザー ID の参加者が存在する場合は、その参加者のスコアを更新する。
+     *
+     * @param participant 登録または更新する `RaidParticipant` オブジェクト
+     * @return 挿入または更新された行数
+     */
+    fun insertOrUpdateParticipant(participant: RaidParticipant): Long {
+        val query = QueryDsl.insert(raidParticipantTable)
+            .onDuplicateKeyUpdate(raidParticipantTable.raidId, raidParticipantTable.userId) {
+                raidParticipantTable.username eq participant.username
+                raidParticipantTable.score eq participant.score
+                raidParticipantTable.joinedAt eq participant.joinedAt
+            }
+            .single(participant)
+
+        return database.runQuery(query)
+    }
 }
