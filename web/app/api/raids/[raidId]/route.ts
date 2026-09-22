@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { fetchFromBackend, BackendError } from "@/lib/backend-client";
+import {
+  fetchFromBackend,
+  handleBackendError,
+  validateNumericId,
+} from "@/lib/backend-client";
 import type { RaidDetailResponse } from "@/lib/api-types";
 
 export async function GET(
@@ -9,22 +13,20 @@ export async function GET(
   const params = await props.params;
   const { raidId } = params;
 
+  const validationError = validateNumericId(raidId, "raidId");
+  if (validationError) {
+    return NextResponse.json(
+      { error: "BAD_REQUEST", message: validationError },
+      { status: 400 }
+    );
+  }
+
   try {
     const data = await fetchFromBackend<RaidDetailResponse>(
-      `/api/raids/${raidId}`
+      `/api/raids/${encodeURIComponent(raidId)}`
     );
     return NextResponse.json(data);
   } catch (error) {
-    if (error instanceof BackendError) {
-      return NextResponse.json(
-        error.errorData || { error: "BACKEND_ERROR", message: error.message },
-        { status: error.status }
-      );
-    }
-
-    return NextResponse.json(
-      { error: "INTERNAL_ERROR", message: "An unexpected error occurred" },
-      { status: 500 }
-    );
+    return handleBackendError(error);
   }
 }

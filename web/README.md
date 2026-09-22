@@ -50,6 +50,14 @@ npm run dev
 
 開発サーバーは [http://localhost:3000](http://localhost:3000) で起動します。
 
+## テスト
+
+```bash
+npm test
+```
+
+Node.js の組み込みテストランナーで BFF ロジックのユニットテストを実行します。
+
 ## API エンドポイント
 
 Next.js BFF が提供する API エンドポイント：
@@ -59,6 +67,13 @@ Next.js BFF が提供する API エンドポイント：
 - `GET /api/raids/{raidId}` - レイド詳細を取得
 
 これらのエンドポイントは Spring Boot API へのプロキシとして動作します。
+
+### BFF の動作仕様
+
+- **キャッシュなし**: すべてのリクエストは `cache: "no-store"` で Spring API から最新データを取得します
+- **タイムアウト**: Spring API へのリクエストは 5 秒でタイムアウトします（504 Gateway Timeout）
+- **エラーハンドリング**: ネットワークエラーやタイムアウトは固定メッセージで返され、内部エラー詳細はサーバーログのみに記録されます
+- **バリデーション**: パスパラメータ（guildId, raidId）は数値のみ受け付けます（不正な形式は 400 Bad Request）
 
 ## Spring Boot API ドキュメント
 
