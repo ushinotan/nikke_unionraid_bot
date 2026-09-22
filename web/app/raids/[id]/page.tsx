@@ -182,7 +182,7 @@ export default function RaidDetailPage({ params }: { params: Params }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                  {data.participants
+                  {[...data.participants]
                     .sort((a, b) => b.score - a.score)
                     .map((participant) => (
                       <tr key={participant.id} className="hover:bg-[#0f0f0f] transition-colors">
@@ -193,7 +193,11 @@ export default function RaidDetailPage({ params }: { params: Params }) {
                           {participant.score.toLocaleString()}
                         </td>
                         <td className="px-4 py-3 text-slate-400 text-sm">
-                          {new Date(participant.joinedAt).toLocaleString("ja-JP")}
+                          {participant.joinedAt ? (
+                            new Date(participant.joinedAt).toLocaleString("ja-JP")
+                          ) : (
+                            <span className="text-slate-600">-</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -231,8 +235,12 @@ export default function RaidDetailPage({ params }: { params: Params }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                  {data.reports
-                    .sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime())
+                  {[...data.reports]
+                    .sort((a, b) => {
+                      if (!a.reportedAt) return 1;
+                      if (!b.reportedAt) return -1;
+                      return new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime();
+                    })
                     .map((report) => (
                       <tr key={report.id} className="hover:bg-[#0f0f0f] transition-colors">
                         <td className="px-4 py-3 text-slate-200">
@@ -257,7 +265,11 @@ export default function RaidDetailPage({ params }: { params: Params }) {
                           )}
                         </td>
                         <td className="px-4 py-3 text-slate-400 text-sm">
-                          {new Date(report.reportedAt).toLocaleString("ja-JP")}
+                          {report.reportedAt ? (
+                            new Date(report.reportedAt).toLocaleString("ja-JP")
+                          ) : (
+                            <span className="text-slate-600">-</span>
+                          )}
                         </td>
                       </tr>
                     ))}

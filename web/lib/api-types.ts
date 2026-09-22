@@ -30,7 +30,7 @@ export interface ParticipantDto {
   userId: string;
   username: string;
   score: number;
-  joinedAt: string;
+  joinedAt: string | null;
 }
 
 export interface RaidReportDto {
@@ -39,7 +39,7 @@ export interface RaidReportDto {
   username: string;
   difficulty: "normal" | "hard";
   is3t: number;
-  reportedAt: string;
+  reportedAt: string | null;
 }
 
 export interface RaidDetailResponse {
