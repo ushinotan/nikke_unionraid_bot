@@ -1,7 +1,5 @@
 package gg.nikke.raid.bot.dto
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 
@@ -16,8 +14,7 @@ data class GuildsResponse(
  * ギルド情報
  */
 data class GuildDto(
-    @JsonSerialize(using = ToStringSerializer::class)
-    val guildId: Long,
+    val guildId: String,
     val createdAt: OffsetDateTime?
 )
 
@@ -33,14 +30,12 @@ data class RaidsResponse(
  */
 data class RaidSummaryDto(
     val id: Int,
-    @JsonSerialize(using = ToStringSerializer::class)
-    val guildId: Long,
+    val guildId: String,
     val raidName: String,
     val startTime: OffsetDateTime,
     val endTime: OffsetDateTime,
     val notifyTime: OffsetDateTime?,
-    @JsonSerialize(using = ToStringSerializer::class)
-    val channelId: Long,
+    val channelId: String,
     val ranking: Int?,
     val percentage: BigDecimal?,
     val finishedAt: OffsetDateTime?,
@@ -61,8 +56,7 @@ data class RaidDetailResponse(
  */
 data class ParticipantDto(
     val id: Int,
-    @JsonSerialize(using = ToStringSerializer::class)
-    val userId: Long,
+    val userId: String,
     val username: String,
     val score: Int,
     val joinedAt: OffsetDateTime?
@@ -73,11 +67,10 @@ data class ParticipantDto(
  */
 data class ReportDto(
     val id: Int,
-    @JsonSerialize(using = ToStringSerializer::class)
-    val userId: Long,
+    val userId: String,
     val username: String,
     val difficulty: String,
-    val is3t: Int,
+    val threeT: Int,
     val reportedAt: OffsetDateTime?
 )
 

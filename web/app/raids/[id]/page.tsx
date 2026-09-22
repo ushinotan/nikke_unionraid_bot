@@ -276,7 +276,7 @@ export default function RaidDetailPage({ params }: { params: Params }) {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          {report.is3t === 1 ? (
+                          {report.threeT === 1 ? (
                             <span className="text-green-400 font-semibold">✓</span>
                           ) : (
                             <span className="text-slate-600">-</span>

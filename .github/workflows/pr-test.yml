@@ -23,7 +23,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres -d nikke_unionraid"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -53,4 +53,4 @@ jobs:
           DATABASE_URL: jdbc:postgresql://localhost:5432/nikke_unionraid
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-        run: ./gradlew test --no-daemon -q
+        run: ./gradlew test --no-daemon
