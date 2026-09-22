@@ -1,4 +1,4 @@
-import { getIronSession, IronSession } from "iron-session";
+import { getIronSession, IronSession, SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 
 export interface SessionData {
@@ -7,8 +7,12 @@ export interface SessionData {
   state?: string;
 }
 
-const sessionOptions = {
-  password: process.env.SESSION_SECRET || "complex_password_at_least_32_characters_long_for_dev_only",
+if (!process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET environment variable is required");
+}
+
+export const sessionOptions: SessionOptions = {
+  password: process.env.SESSION_SECRET,
   cookieName: "nikke_raid_session",
   cookieOptions: {
     httpOnly: true,

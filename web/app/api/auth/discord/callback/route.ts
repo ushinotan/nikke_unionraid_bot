@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
   }
 
   delete session.state;
+  await session.save();
 
   if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
     return NextResponse.json(
@@ -109,7 +110,27 @@ export async function GET(request: NextRequest) {
     }
 
     const user: DiscordUser = await userResponse.json();
-    const userGuilds: DiscordGuild[] = await guildsResponse.json();
+    let userGuilds: DiscordGuild[] = await guildsResponse.json();
+
+    // Discord API returns max 200 guilds per request, paginate if needed
+    while (userGuilds.length % 200 === 0 && userGuilds.length > 0) {
+      const lastGuildId = userGuilds[userGuilds.length - 1].id;
+      const nextPageResponse = await fetch(
+        `https://discord.com/api/users/@me/guilds?after=${lastGuildId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${tokens.access_token}`,
+          },
+        }
+      );
+
+      if (!nextPageResponse.ok) break;
+
+      const nextPage: DiscordGuild[] = await nextPageResponse.json();
+      if (nextPage.length === 0) break;
+
+      userGuilds = userGuilds.concat(nextPage);
+    }
 
     const userGuildIds = userGuilds.map((g) => g.id);
 
