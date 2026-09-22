@@ -53,16 +53,15 @@ SESSION_SECRET=complex_password_at_least_32_characters_long
 
 ### ローカル開発
 
-`.env.local` ファイルを作成して設定してください：
+プロジェクトルートの `env.example` を `.env` としてコピーし、必要な値を設定してください：
 
 ```bash
-# .env.local
-BACKEND_URL=http://localhost:8080
-DISCORD_CLIENT_ID=your_client_id_here
-DISCORD_CLIENT_SECRET=your_client_secret_here
-DISCORD_REDIRECT_URI=http://localhost:3000/api/auth/discord/callback
-SESSION_SECRET=complex_password_at_least_32_characters_long
+# プロジェクトルートで
+cp env.example .env
+# その後、.env ファイルを編集
 ```
+
+Next.js 開発サーバーは自動的にプロジェクトルートの `.env` ファイルを読み込みます。
 
 ### Docker Compose での実行
 
