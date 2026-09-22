@@ -38,7 +38,7 @@ export interface RaidReportDto {
   userId: string;
   username: string;
   difficulty: "normal" | "hard";
-  is3t: number;
+  threeT: number;
   reportedAt: string | null;
 }
 

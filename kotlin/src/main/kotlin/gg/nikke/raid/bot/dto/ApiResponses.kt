@@ -1,6 +1,5 @@
 package gg.nikke.raid.bot.dto
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 
@@ -71,8 +70,7 @@ data class ReportDto(
     val userId: String,
     val username: String,
     val difficulty: String,
-    @get:JsonProperty("is3t")
-    val is3t: Int,
+    val threeT: Int,
     val reportedAt: OffsetDateTime?
 )
 

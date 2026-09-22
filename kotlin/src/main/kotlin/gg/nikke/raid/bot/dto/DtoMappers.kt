@@ -40,6 +40,6 @@ fun RaidReport.toDto(): ReportDto = ReportDto(
     userId = this.userId.toString(),
     username = this.username,
     difficulty = this.difficulty,
-    is3t = this.is3t,
+    threeT = this.is3t,
     reportedAt = this.reportedAt
 )

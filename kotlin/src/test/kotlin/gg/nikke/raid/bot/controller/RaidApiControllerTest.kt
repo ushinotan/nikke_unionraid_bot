@@ -194,7 +194,7 @@ class RaidApiControllerTest(
             .andExpect(jsonPath("$.reports.length()").value(1))
             .andExpect(jsonPath("$.reports[0].userId").value("300000001"))
             .andExpect(jsonPath("$.reports[0].difficulty").value("hard"))
-            .andExpect(jsonPath("$.reports[0].is3t").value(1))
+            .andExpect(jsonPath("$.reports[0].threeT").value(1))
     }
 
     @Test

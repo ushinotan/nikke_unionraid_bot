@@ -159,7 +159,7 @@ Next.js BFF が認証を担当し、Spring Boot API は信頼されたバック�
       "userId": "100000000000000001",
       "username": "ユーザー1",
       "difficulty": "hard",
-      "is3t": 1,
+      "threeT": 1,
       "reportedAt": "2024-01-20T15:00:00Z"
     },
     {
@@ -167,7 +167,7 @@ Next.js BFF が認証を担当し、Spring Boot API は信頼されたバック�
       "userId": "100000000000000002",
       "username": "ユーザー2",
       "difficulty": "normal",
-      "is3t": 1,
+      "threeT": 1,
       "reportedAt": "2024-01-20T16:00:00Z"
     }
   ]
@@ -201,7 +201,7 @@ Next.js BFF が認証を担当し、Spring Boot API は信頼されたバック�
 - `normal`: ノーマル難易度
 - `hard`: ハード難易度
 
-### is3t
+### threeT
 
 3ターン撃破フラグ。
 
