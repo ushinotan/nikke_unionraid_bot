@@ -2,6 +2,7 @@ package gg.nikke.raid.bot.repository
 
 import gg.nikke.raid.bot.entity.RaidReport
 import org.komapper.core.dsl.QueryDsl
+import org.komapper.core.dsl.operator.desc
 import org.komapper.core.dsl.query.firstOrNull
 import org.komapper.jdbc.JdbcDatabase
 import org.springframework.stereotype.Repository
@@ -39,6 +40,7 @@ class RaidReportRepository(
 
     /**
      * 指定したレイド ID に一致する全てのレイド報告を取得する。
+     * 報告日時の降順（最新が先頭）、同一日時の場合はIDの昇順でソートされる。
      *
      * @param raidId レイド ID
      * @return 指定したレイド ID に一致する `RaidReport` のリスト。存在しない場合は空のリスト
@@ -48,6 +50,8 @@ class RaidReportRepository(
             .where {
                 raidReportTable.raidId eq raidId
             }
+            .orderBy(raidReportTable.reportedAt.desc())
+            .orderBy(raidReportTable.id)
 
         return database.runQuery(query)
     }

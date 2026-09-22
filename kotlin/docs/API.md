@@ -224,6 +224,28 @@ Discord の Snowflake ID (`guildId`, `userId`, `channelId`) は以下の理由�
 
 フロントエンドでは、これらの ID を文字列として扱い、数値演算を行わないでください。
 
+### パスパラメータ vs レスポンス JSON
+
+**重要**: パスパラメータと JSON レスポンスで ID の型が異なります。
+
+#### パスパラメータ（リクエスト）
+- 数値型として送信できます（例: `/api/guilds/123456789012345678`）
+- Spring Boot が Long として自動バインドします
+- BFF 実装者は文字列を数値に変換せず、そのまま URL パスに埋め込んでください
+
+#### JSON レスポンス
+- Snowflake ID は**文字列**として返されます
+- JavaScript で安全に扱うため、精度損失を防ぎます
+
+**例**:
+```javascript
+// BFF から Spring API を呼び出す場合
+const guildId = "123456789012345678"; // 文字列として保持
+const response = await fetch(`http://spring-api/api/guilds/${guildId}/raids`); // そのまま埋め込む
+const data = await response.json();
+console.log(data.raids[0].guildId); // "123456789012345678" (文字列)
+```
+
 ## 実装メモ
 
 - **内部向け API として設計** (Next.js BFF または信頼されたネットワークからの呼び出しのみ)

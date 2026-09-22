@@ -15,6 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 
+// 拡張関数のインポート
+import gg.nikke.raid.bot.dto.toSummaryDto
+import gg.nikke.raid.bot.dto.toDto
+
 /**
  * レイド情報取得API用のコントローラー
  *
@@ -58,21 +62,7 @@ class RaidApiController(
         val guild = guildRepository.findGuildById(guildId)
             ?: return ResponseEntity.notFound().build()
 
-        val raids = unionRaidRepository.findUnionRaidsByGuildId(guildId).map { raid ->
-            RaidSummaryDto(
-                id = raid.id,
-                guildId = raid.guildId,
-                raidName = raid.raidName,
-                startTime = raid.startTime,
-                endTime = raid.endTime,
-                notifyTime = raid.notifyTime,
-                channelId = raid.channelId,
-                ranking = raid.ranking,
-                percentage = raid.percentage,
-                finishedAt = raid.finishedAt,
-                createdAt = raid.createdAt
-            )
-        }
+        val raids = unionRaidRepository.findUnionRaidsByGuildId(guildId).map { it.toSummaryDto() }
         return ResponseEntity.ok(RaidsResponse(raids))
     }
 
@@ -88,44 +78,12 @@ class RaidApiController(
         val raid = unionRaidRepository.findUnionRaidById(raidId)
             ?: return ResponseEntity.notFound().build()
 
-        val participants = raidParticipantRepository.findParticipantsByRaidId(raidId).map { participant ->
-            ParticipantDto(
-                id = participant.id,
-                userId = participant.userId,
-                username = participant.username,
-                score = participant.score,
-                joinedAt = participant.joinedAt
-            )
-        }
-
-        val reports = raidReportRepository.findAllRaidReportsByRaidId(raidId).map { report ->
-            ReportDto(
-                id = report.id,
-                userId = report.userId,
-                username = report.username,
-                difficulty = report.difficulty,
-                is3t = report.is3t,
-                reportedAt = report.reportedAt
-            )
-        }
-
-        val raidSummary = RaidSummaryDto(
-            id = raid.id,
-            guildId = raid.guildId,
-            raidName = raid.raidName,
-            startTime = raid.startTime,
-            endTime = raid.endTime,
-            notifyTime = raid.notifyTime,
-            channelId = raid.channelId,
-            ranking = raid.ranking,
-            percentage = raid.percentage,
-            finishedAt = raid.finishedAt,
-            createdAt = raid.createdAt
-        )
+        val participants = raidParticipantRepository.findParticipantsByRaidId(raidId).map { it.toDto() }
+        val reports = raidReportRepository.findAllRaidReportsByRaidId(raidId).map { it.toDto() }
 
         return ResponseEntity.ok(
             RaidDetailResponse(
-                raid = raidSummary,
+                raid = raid.toSummaryDto(),
                 participants = participants,
                 reports = reports
             )
