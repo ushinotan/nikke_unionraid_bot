@@ -181,9 +181,6 @@ export default function RaidsPage() {
                 ))}
               </select>
             </div>
-            <p className="text-xs text-slate-500">
-              ⚠️ 暫定（認証前の画面確認用）。#42 後に session の所属ギルドへ置き換え。
-            </p>
           </div>
         </div>
       </div>

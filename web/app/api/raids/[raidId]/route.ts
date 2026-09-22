@@ -5,6 +5,7 @@ import {
   validateNumericId,
 } from "@/lib/backend-client";
 import type { RaidDetailResponse } from "@/lib/api-types";
+import { getSession } from "@/lib/session";
 
 export async function GET(
   _request: Request,
@@ -25,6 +26,17 @@ export async function GET(
     const data = await fetchFromBackend<RaidDetailResponse>(
       `/api/raids/${encodeURIComponent(raidId)}`
     );
+
+    const session = await getSession();
+    const userGuildIds = session.guildIds || [];
+
+    if (!userGuildIds.includes(data.raid.guildId)) {
+      return NextResponse.json(
+        { error: "FORBIDDEN", message: "Access to this raid is not allowed" },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(data);
   } catch (error) {
     return handleBackendError(error);
