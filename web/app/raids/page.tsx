@@ -16,20 +16,38 @@ export default function RaidsPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const fetchGuilds = async () => {
+    const fetchGuildsAndSession = async () => {
       try {
         setLoading(true);
         setGuildsError(null);
-        const response = await fetch("/api/guilds");
-        if (!response.ok) {
+
+        const [guildsResponse, sessionResponse] = await Promise.all([
+          fetch("/api/guilds"),
+          fetch("/api/session/selected-guild"),
+        ]);
+
+        if (!guildsResponse.ok) {
           throw new Error("ギルド一覧の取得に失敗しました");
         }
-        const data = await response.json();
+
+        const guildsData = await guildsResponse.json();
+        const sessionData = sessionResponse.ok
+          ? await sessionResponse.json()
+          : { selectedGuildId: null };
 
         if (!cancelled) {
-          setGuilds(data.guilds || []);
-          if (data.guilds && data.guilds.length > 0) {
-            setSelectedGuildId(data.guilds[0].guildId);
+          const userGuilds = guildsData.guilds || [];
+          setGuilds(userGuilds);
+
+          if (userGuilds.length > 0) {
+            const savedGuildId = sessionData.selectedGuildId;
+            const isValidSelection =
+              savedGuildId &&
+              userGuilds.some((g: GuildDto) => g.guildId === savedGuildId);
+
+            setSelectedGuildId(
+              isValidSelection ? savedGuildId : userGuilds[0].guildId
+            );
           }
         }
       } catch (err) {
@@ -45,7 +63,7 @@ export default function RaidsPage() {
       }
     };
 
-    fetchGuilds();
+    fetchGuildsAndSession();
 
     return () => {
       cancelled = true;
@@ -63,6 +81,13 @@ export default function RaidsPage() {
       try {
         setRaidsLoading(true);
         setRaidsError(null);
+
+        await fetch("/api/session/selected-guild", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId: selectedGuildId }),
+        });
+
         const response = await fetch(`/api/guilds/${selectedGuildId}/raids`);
         if (!response.ok) {
           throw new Error("レイド一覧の取得に失敗しました");
@@ -195,27 +220,7 @@ export default function RaidsPage() {
             <h3 className="text-red-400 text-lg font-bold mb-2">エラー</h3>
             <p className="text-red-300 mb-4">{raidsError}</p>
             <button
-              onClick={() => {
-                if (selectedGuildId) {
-                  setRaidsError(null);
-                  setRaidsLoading(true);
-                  fetch(`/api/guilds/${selectedGuildId}/raids`)
-                    .then((res) => {
-                      if (!res.ok) throw new Error("レイド一覧の取得に失敗しました");
-                      return res.json();
-                    })
-                    .then((data) => {
-                      setRaids(data.raids || []);
-                      setRaidsLoading(false);
-                    })
-                    .catch((err) => {
-                      setRaidsError(
-                        err instanceof Error ? err.message : "予期しないエラーが発生しました"
-                      );
-                      setRaidsLoading(false);
-                    });
-                }
-              }}
+              onClick={() => window.location.reload()}
               className="px-4 py-2 bg-red-900 hover:bg-red-800 text-white rounded transition-colors"
             >
               再読み込み
