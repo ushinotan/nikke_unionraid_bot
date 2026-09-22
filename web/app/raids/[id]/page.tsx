@@ -145,13 +145,25 @@ export default function RaidDetailPage({ params }: { params: Params }) {
             <div className="flex justify-between border-b border-slate-800 pb-2">
               <dt className="text-slate-400">開始日時:</dt>
               <dd className="text-slate-200">
-                {new Date(data.raid.startTime).toLocaleString("ja-JP")}
+                {new Date(data.raid.startTime).toLocaleDateString("ja-JP", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </dd>
             </div>
             <div className="flex justify-between border-b border-slate-800 pb-2">
               <dt className="text-slate-400">終了日時:</dt>
               <dd className="text-slate-200">
-                {new Date(data.raid.endTime).toLocaleString("ja-JP")}
+                {new Date(data.raid.endTime).toLocaleDateString("ja-JP", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </dd>
             </div>
           </dl>
@@ -194,7 +206,13 @@ export default function RaidDetailPage({ params }: { params: Params }) {
                         </td>
                         <td className="px-4 py-3 text-slate-400 text-sm">
                           {participant.joinedAt ? (
-                            new Date(participant.joinedAt).toLocaleString("ja-JP")
+                            new Date(participant.joinedAt).toLocaleDateString("ja-JP", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
                           ) : (
                             <span className="text-slate-600">-</span>
                           )}
@@ -266,7 +284,13 @@ export default function RaidDetailPage({ params }: { params: Params }) {
                         </td>
                         <td className="px-4 py-3 text-slate-400 text-sm">
                           {report.reportedAt ? (
-                            new Date(report.reportedAt).toLocaleString("ja-JP")
+                            new Date(report.reportedAt).toLocaleDateString("ja-JP", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
                           ) : (
                             <span className="text-slate-600">-</span>
                           )}
