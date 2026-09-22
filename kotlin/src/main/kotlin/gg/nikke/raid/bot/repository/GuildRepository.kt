@@ -12,6 +12,16 @@ class GuildRepository(
 ): KomapperMeta() {
 
     /**
+     * 全てのGuild情報を取得
+     *
+     * @return Guild情報のリスト
+     */
+    fun findAllGuilds(): List<Guild> {
+        val query = QueryDsl.from(guildTable)
+        return database.runQuery(query)
+    }
+
+    /**
      * GuildIdに基づいてGuild情報を取得
      *
      * @param guildId
