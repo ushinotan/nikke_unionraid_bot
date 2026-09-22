@@ -5,5 +5,5 @@ export async function POST(request: NextRequest) {
   const session = await getSession();
   session.destroy();
 
-  return NextResponse.redirect(new URL("/", request.url));
+  return NextResponse.redirect(new URL("/", request.url), 303);
 }

@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { GuildDto, RaidSummaryDto } from "@/lib/api-types";
 
-export const dynamic = "force-dynamic";
-
 export default function RaidsPage() {
   const [guilds, setGuilds] = useState<GuildDto[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
