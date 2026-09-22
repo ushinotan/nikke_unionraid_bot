@@ -1,37 +1,32 @@
 import { NextResponse } from "next/server";
+import {
+  fetchFromBackend,
+  handleBackendError,
+  validateSnowflakeId,
+} from "@/lib/backend-client";
+import type { RaidsResponse } from "@/lib/api-types";
 
-const SPRING_API_URL =
-  process.env.SPRING_API_URL || "http://localhost:8080";
+export async function GET(
+  _request: Request,
+  props: { params: Promise<{ guildId: string }> }
+) {
+  const params = await props.params;
+  const { guildId } = params;
 
-type Params = Promise<{ guildId: string }>;
-
-export async function GET(_request: Request, { params }: { params: Params }) {
-  const { guildId } = await params;
+  const validationError = validateSnowflakeId(guildId, "guildId");
+  if (validationError) {
+    return NextResponse.json(
+      { error: "BAD_REQUEST", message: validationError },
+      { status: 400 }
+    );
+  }
 
   try {
-    const response = await fetch(
-      `${SPRING_API_URL}/api/guilds/${guildId}/raids`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
+    const data = await fetchFromBackend<RaidsResponse>(
+      `/api/guilds/${encodeURIComponent(guildId)}/raids`
     );
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: "Backend unavailable" },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error(`Failed to fetch raids for guild ${guildId}:`, error);
-    return NextResponse.json(
-      { error: "Backend unavailable" },
-      { status: 503 }
-    );
+    return handleBackendError(error);
   }
 }

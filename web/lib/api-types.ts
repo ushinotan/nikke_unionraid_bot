@@ -1,13 +1,13 @@
-export interface Guild {
+export interface GuildDto {
   guildId: string;
   createdAt: string;
 }
 
 export interface GuildsResponse {
-  guilds: Guild[];
+  guilds: GuildDto[];
 }
 
-export interface Raid {
+export interface RaidSummaryDto {
   id: number;
   guildId: string;
   raidName: string;
@@ -22,16 +22,10 @@ export interface Raid {
 }
 
 export interface RaidsResponse {
-  raids: Raid[];
+  raids: RaidSummaryDto[];
 }
 
-export interface RaidDetailResponse {
-  raid: Raid;
-  participants: Participant[];
-  reports: Report[];
-}
-
-export interface Participant {
+export interface ParticipantDto {
   id: number;
   userId: string;
   username: string;
@@ -39,11 +33,17 @@ export interface Participant {
   joinedAt: string;
 }
 
-export interface Report {
+export interface RaidReportDto {
   id: number;
   userId: string;
   username: string;
   difficulty: "normal" | "hard";
-  is3t: 0 | 1;
+  is3t: number;
   reportedAt: string;
+}
+
+export interface RaidDetailResponse {
+  raid: RaidSummaryDto;
+  participants: ParticipantDto[];
+  reports: RaidReportDto[];
 }

@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { Guild, Raid } from "../types/api";
+import type { GuildDto, RaidSummaryDto } from "@/lib/api-types";
 
 export default function RaidsPage() {
-  const [guilds, setGuilds] = useState<Guild[]>([]);
+  const [guilds, setGuilds] = useState<GuildDto[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
-  const [raids, setRaids] = useState<Raid[]>([]);
+  const [raids, setRaids] = useState<RaidSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [raidsLoading, setRaidsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +91,7 @@ export default function RaidsPage() {
     };
   }, [selectedGuildId]);
 
-  const getRaidStatus = (raid: Raid): string => {
+  const getRaidStatus = (raid: RaidSummaryDto): string => {
     if (raid.finishedAt) {
       return "終了";
     }
@@ -162,22 +162,27 @@ export default function RaidsPage() {
             NIKKE ユニオンレイド 戦績
           </h1>
 
-          <div className="flex items-center gap-3">
-            <label htmlFor="guild-select" className="text-slate-400 font-medium">
-              ギルド:
-            </label>
-            <select
-              id="guild-select"
-              value={selectedGuildId}
-              onChange={(e) => setSelectedGuildId(e.target.value)}
-              className="bg-[#2a2a2a] border border-slate-700 text-slate-200 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-[#333333] transition-colors"
-            >
-              {guilds.map((guild) => (
-                <option key={guild.guildId} value={guild.guildId}>
-                  {guild.guildId}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3">
+              <label htmlFor="guild-select" className="text-slate-400 font-medium">
+                ギルド:
+              </label>
+              <select
+                id="guild-select"
+                value={selectedGuildId}
+                onChange={(e) => setSelectedGuildId(e.target.value)}
+                className="bg-[#2a2a2a] border border-slate-700 text-slate-200 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-[#333333] transition-colors"
+              >
+                {guilds.map((guild) => (
+                  <option key={guild.guildId} value={guild.guildId}>
+                    {guild.guildId}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-slate-500">
+              ⚠️ 暫定（認証前の画面確認用）。#42 後に session の所属ギルドへ置き換え。
+            </p>
           </div>
         </div>
       </div>

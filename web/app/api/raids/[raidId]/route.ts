@@ -1,34 +1,32 @@
 import { NextResponse } from "next/server";
+import {
+  fetchFromBackend,
+  handleBackendError,
+  validateNumericId,
+} from "@/lib/backend-client";
+import type { RaidDetailResponse } from "@/lib/api-types";
 
-const SPRING_API_URL =
-  process.env.SPRING_API_URL || "http://localhost:8080";
+export async function GET(
+  _request: Request,
+  props: { params: Promise<{ raidId: string }> }
+) {
+  const params = await props.params;
+  const { raidId } = params;
 
-type Params = Promise<{ raidId: string }>;
-
-export async function GET(_request: Request, { params }: { params: Params }) {
-  const { raidId } = await params;
+  const validationError = validateNumericId(raidId, "raidId");
+  if (validationError) {
+    return NextResponse.json(
+      { error: "BAD_REQUEST", message: validationError },
+      { status: 400 }
+    );
+  }
 
   try {
-    const response = await fetch(`${SPRING_API_URL}/api/raids/${raidId}`, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: "Backend unavailable" },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
+    const data = await fetchFromBackend<RaidDetailResponse>(
+      `/api/raids/${encodeURIComponent(raidId)}`
+    );
     return NextResponse.json(data);
   } catch (error) {
-    console.error(`Failed to fetch raid ${raidId}:`, error);
-    return NextResponse.json(
-      { error: "Backend unavailable" },
-      { status: 503 }
-    );
+    return handleBackendError(error);
   }
 }

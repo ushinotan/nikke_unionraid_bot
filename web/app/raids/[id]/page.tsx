@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { RaidDetailResponse } from "../../types/api";
+import type { RaidDetailResponse } from "@/lib/api-types";
 
 type Params = Promise<{ id: string }>;
 

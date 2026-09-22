@@ -1,69 +1,110 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NIKKE Union Raid Bot - Web フロントエンド
 
-## NIKKE ユニオンレイド フロントエンド
+このプロジェクトは [Next.js](https://nextjs.org) で構築された、NIKKE Union Raid Bot のウェブフロントエンドです。
 
-ユニオンレイドの戦績データを表示するフロントエンドアプリケーションです。
+## アーキテクチャ
 
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+ブラウザ → Next.js Route Handlers (BFF) → Spring Boot API → PostgreSQL
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Next.js は薄い BFF (Backend For Frontend) として動作します**
+- **Next.js は PostgreSQL に直接接続しません**
+- すべてのデータアクセスは Spring Boot API 経由で行われます
+
+## 環境変数の設定
+
+### 必要な環境変数
+
+Next.js プロジェクトでは、以下の環境変数のみが必要です：
+
+```bash
+# Spring Boot API のベース URL
+BACKEND_URL=http://localhost:8080
+```
+
+### ローカル開発
+
+`.env.local` ファイルを作成して設定してください：
+
+```bash
+# .env.local
+BACKEND_URL=http://localhost:8080
+```
+
+### Docker Compose での実行
+
+Docker Compose でコンテナ間通信を行う場合は、サービス名を使用してください：
+
+```bash
+# コンテナ間通信の例
+BACKEND_URL=http://api:8080
+```
+
+**注意**: コンテナ内では `localhost` はコンテナ自身を指すため、他のコンテナにアクセスできません。Spring Boot API のサービス名（例: `api`）を使用してください。
+
+### 不要な環境変数
+
+**以下の環境変数は Next.js では不要です（Spring Boot 側でのみ使用されます）：**
+
+- `DATABASE_URL`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- その他のデータベース接続情報
+
+Next.js プロジェクトに PostgreSQL クライアント（`pg` など）をインストールする必要はありません。
+
+## 開発サーバーの起動
+
+```bash
+npm install
+npm run dev
+```
+
+開発サーバーは [http://localhost:3000](http://localhost:3000) で起動します。
+
+## 画面
 
 ### レイド一覧ページ
 
-レイド一覧ページを開くには、[http://localhost:3000/raids](http://localhost:3000/raids) にアクセスしてください。
+[http://localhost:3000/raids](http://localhost:3000/raids) でレイド一覧を表示できます。
 
-- ギルドを選択してレイド一覧を表示できます
-- レイド名をクリックすると詳細ページに遷移します（詳細な情報は Issue #40 で実装予定）
+**機能:**
+- ギルド選択（暫定: 認証前の画面確認用。#42 後に session の所属ギルドへ置き換え予定）
+- レイド名、開始/終了日時、順位、パーセンテージ、ステータス（進行中/終了）を表示
+- レイド詳細ページへのリンク（詳細ページは #40 で本実装予定）
 
-### 環境変数
+## テスト
 
-Spring Boot API のエンドポイントを設定するには、`.env.local` に以下を追加してください:
-
+```bash
+npm test
 ```
-SPRING_API_URL=http://localhost:8080
-```
 
-デフォルトは `http://localhost:8080` です。
+Node.js の組み込みテストランナーで BFF ロジックのユニットテストを実行します。
 
-## 実装済み機能
+## API エンドポイント
 
-- レイド一覧表示 (Issue #39)
-  - ギルド選択機能
-  - レイド名、開始/終了日時、順位、パーセンテージ、ステータスの表示
-  - 進行中/終了ステータスの判定
-  - 空状態とエラーハンドリング
-- レイド詳細ページ（スタブ、Issue #40 で本実装予定）
+Next.js BFF が提供する API エンドポイント：
 
-## 技術スタック
+- `GET /api/guilds` - ギルド一覧を取得
+- `GET /api/guilds/{guildId}/raids` - 指定ギルドのレイド一覧を取得
+- `GET /api/raids/{raidId}` - レイド詳細を取得
 
-- Next.js 16 (App Router)
-- TypeScript
-- Tailwind CSS v4
-- React 19
+これらのエンドポイントは Spring Boot API へのプロキシとして動作します。
 
-## Learn More
+### BFF の動作仕様
 
-To learn more about Next.js, take a look at the following resources:
+- **キャッシュなし**: すべてのリクエストは `cache: "no-store"` で Spring API から最新データを取得します
+- **タイムアウト**: Spring API へのリクエストは 5 秒でタイムアウトします（504 Gateway Timeout）
+- **エラーハンドリング**: ネットワークエラーやタイムアウトは固定メッセージで返され、内部エラー詳細はサーバーログのみに記録されます
+- **バリデーション**: パスパラメータ（guildId, raidId）は数値のみ受け付けます（不正な形式は 400 Bad Request）
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Spring Boot API ドキュメント
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+バックエンド API の詳細な仕様については、以下を参照してください：
 
-## Deploy on Vercel
+- [`kotlin/docs/API.md`](../kotlin/docs/API.md) - Spring Boot API の完全なドキュメント
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## デプロイ
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+詳細は [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) を参照してください。
