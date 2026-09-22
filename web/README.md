@@ -23,12 +23,25 @@ Next.js プロジェクトでは、以下の環境変数のみが必要です：
 BACKEND_URL=http://localhost:8080
 ```
 
+### ローカル開発
+
 `.env.local` ファイルを作成して設定してください：
 
 ```bash
 # .env.local
 BACKEND_URL=http://localhost:8080
 ```
+
+### Docker Compose での実行
+
+Docker Compose でコンテナ間通信を行う場合は、サービス名を使用してください：
+
+```bash
+# コンテナ間通信の例
+BACKEND_URL=http://api:8080
+```
+
+**注意**: コンテナ内では `localhost` はコンテナ自身を指すため、他のコンテナにアクセスできません。Spring Boot API のサービス名（例: `api`）を使用してください。
 
 ### 不要な環境変数
 
