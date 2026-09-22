@@ -9,12 +9,12 @@ import gg.nikke.raid.bot.entity.UnionRaid
  */
 fun UnionRaid.toSummaryDto(): RaidSummaryDto = RaidSummaryDto(
     id = this.id,
-    guildId = this.guildId,
+    guildId = this.guildId.toString(),
     raidName = this.raidName,
     startTime = this.startTime,
     endTime = this.endTime,
     notifyTime = this.notifyTime,
-    channelId = this.channelId,
+    channelId = this.channelId.toString(),
     ranking = this.ranking,
     percentage = this.percentage,
     finishedAt = this.finishedAt,
@@ -26,7 +26,7 @@ fun UnionRaid.toSummaryDto(): RaidSummaryDto = RaidSummaryDto(
  */
 fun RaidParticipant.toDto(): ParticipantDto = ParticipantDto(
     id = this.id,
-    userId = this.userId,
+    userId = this.userId.toString(),
     username = this.username,
     score = this.score,
     joinedAt = this.joinedAt
@@ -37,7 +37,7 @@ fun RaidParticipant.toDto(): ParticipantDto = ParticipantDto(
  */
 fun RaidReport.toDto(): ReportDto = ReportDto(
     id = this.id,
-    userId = this.userId,
+    userId = this.userId.toString(),
     username = this.username,
     difficulty = this.difficulty,
     is3t = this.is3t,

@@ -44,7 +44,7 @@ class RaidApiController(
     fun getGuilds(): ResponseEntity<GuildsResponse> {
         val guilds = guildRepository.findAllGuilds().map { guild ->
             GuildDto(
-                guildId = guild.guildId,
+                guildId = guild.guildId.toString(),
                 createdAt = guild.createdAt
             )
         }
