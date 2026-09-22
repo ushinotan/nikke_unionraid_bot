@@ -4,14 +4,11 @@ import gg.nikke.raid.bot.entity.Guild
 import gg.nikke.raid.bot.entity.RaidParticipant
 import gg.nikke.raid.bot.entity.UnionRaid
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestConstructor
 import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
-import java.time.ZoneOffset
-import java.time.temporal.ChronoUnit
 
 @SpringBootTest
 @Transactional
@@ -102,7 +99,7 @@ open class RaidParticipantRepositoryIntegrationTest(
     @Test
     fun `同じraidIdとuserIdの参加者はupsertされ1行のまま`() {
         val guildId = 70_000_006L
-        val now = OffsetDateTime.now().truncatedTo(ChronoUnit.MICROS)
+        val now = OffsetDateTime.now()
         val raid = createRaid(guildId, now)
 
         // 初回登録
@@ -138,10 +135,7 @@ open class RaidParticipantRepositoryIntegrationTest(
         assertEquals(1500000, participant.score)
         
         // joined_at は元の値を保持（最初の参加時刻）
-        // 両方を UTC に変換してから Instant で比較（PostgreSQL は UTC で保存するため）
-        val expectedInstant = now.withOffsetSameInstant(ZoneOffset.UTC).toInstant().truncatedTo(ChronoUnit.MICROS)
-        val actualInstant = participant.joinedAt?.withOffsetSameInstant(ZoneOffset.UTC)?.toInstant()?.truncatedTo(ChronoUnit.MICROS)
-        assertEquals(expectedInstant, actualInstant)
+        assertEquals(now.toInstant(), participant.joinedAt?.toInstant())
     }
 
     private fun createRaid(guildId: Long, now: OffsetDateTime): UnionRaid {
