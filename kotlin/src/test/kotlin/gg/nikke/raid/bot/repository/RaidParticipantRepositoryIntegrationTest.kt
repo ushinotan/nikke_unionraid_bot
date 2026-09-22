@@ -96,6 +96,48 @@ open class RaidParticipantRepositoryIntegrationTest(
         assertTrue(participants.isEmpty())
     }
 
+    @Test
+    fun `同じraidIdとuserIdの参加者はupsertされ1行のまま`() {
+        val guildId = 70_000_006L
+        val now = OffsetDateTime.now()
+        val raid = createRaid(guildId, now)
+
+        // 初回登録
+        val firstInsert = raidParticipantRepository.insertOrUpdateParticipant(
+            RaidParticipant(
+                raidId = raid.id,
+                userId = 80_000_010L,
+                username = "初回ユーザー名",
+                score = 1000000,
+                joinedAt = now,
+            )
+        )
+
+        // 同じユーザーを更新（スコアとユーザー名変更）
+        val secondInsert = raidParticipantRepository.insertOrUpdateParticipant(
+            RaidParticipant(
+                raidId = raid.id,
+                userId = 80_000_010L,
+                username = "更新後ユーザー名",
+                score = 1500000,
+                joinedAt = now.plusHours(1), // 更新時の時刻（保持されるべきではない）
+            )
+        )
+
+        val participants = raidParticipantRepository.findParticipantsByRaidId(raid.id)
+
+        // 行数は1行のまま
+        assertEquals(1, participants.size)
+        
+        val participant = participants[0]
+        // ユーザー名とスコアは更新されている
+        assertEquals("更新後ユーザー名", participant.username)
+        assertEquals(1500000, participant.score)
+        
+        // joined_at は元の値を保持（最初の参加時刻）
+        assertEquals(now.toInstant(), participant.joinedAt?.toInstant())
+    }
+
     private fun createRaid(guildId: Long, now: OffsetDateTime): UnionRaid {
         guildRepository.insertGuild(
             Guild(

@@ -252,4 +252,62 @@ open class UnionRaidRepositoryIntegrationTest(
         )
         assertEquals(0L, secondFinish)
     }
+
+    @Test
+    fun `ギルドのレイド一覧取得でNULL created_atのレイドは最後になる`() {
+        val guildId = 20_000_009L
+        val now = OffsetDateTime.now()
+
+        guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
+
+        // 通常のレイド（created_at あり）
+        val raid1 = unionRaidRepository.insertUnionRaid(
+            UnionRaid(
+                guildId = guildId,
+                raidName = "古いレイド",
+                startTime = now.minusHours(3),
+                endTime = now.minusHours(2),
+                channelId = 30_000_009L,
+                createdAt = now.minusDays(1),
+            )
+        )
+
+        // created_at が NULL のレイド
+        val raid2 = unionRaidRepository.insertUnionRaid(
+            UnionRaid(
+                guildId = guildId,
+                raidName = "NULL created_at レイド",
+                startTime = now.minusHours(2),
+                endTime = now.minusHours(1),
+                channelId = 30_000_009L,
+                createdAt = null,
+            )
+        )
+
+        // 最新のレイド
+        val raid3 = unionRaidRepository.insertUnionRaid(
+            UnionRaid(
+                guildId = guildId,
+                raidName = "最新レイド",
+                startTime = now.plusHours(1),
+                endTime = now.plusHours(2),
+                channelId = 30_000_009L,
+                createdAt = now,
+            )
+        )
+
+        val raids = unionRaidRepository.findUnionRaidsByGuildId(guildId)
+
+        assertEquals(3, raids.size)
+        // 最新が先頭
+        assertEquals(raid3.id, raids[0].id)
+        assertEquals("最新レイド", raids[0].raidName)
+        // 古いレイドが2番目
+        assertEquals(raid1.id, raids[1].id)
+        assertEquals("古いレイド", raids[1].raidName)
+        // NULL created_at は最後
+        assertEquals(raid2.id, raids[2].id)
+        assertEquals("NULL created_at レイド", raids[2].raidName)
+        assertNull(raids[2].createdAt)
+    }
 }

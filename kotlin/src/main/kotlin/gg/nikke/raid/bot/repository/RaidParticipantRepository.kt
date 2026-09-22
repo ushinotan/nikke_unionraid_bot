@@ -37,6 +37,7 @@ class RaidParticipantRepository(
 
     /**
      * レイド参加者を登録する。既に同じレイド ID とユーザー ID の参加者が存在する場合は、その参加者のスコアを更新する。
+     * 更新時は joined_at は元の値を保持する（履歴保持のため）。
      *
      * @param participant 登録または更新する `RaidParticipant` オブジェクト
      * @return 挿入または更新された行数
@@ -46,7 +47,7 @@ class RaidParticipantRepository(
             .onDuplicateKeyUpdate(raidParticipantTable.raidId, raidParticipantTable.userId) {
                 raidParticipantTable.username eq participant.username
                 raidParticipantTable.score eq participant.score
-                raidParticipantTable.joinedAt eq participant.joinedAt
+                // joined_at は更新しない（最初の参加時刻を保持）
             }
             .single(participant)
 

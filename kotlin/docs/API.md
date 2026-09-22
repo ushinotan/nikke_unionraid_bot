@@ -5,7 +5,22 @@
 Spring Boot で実装された読み取り専用の REST API。
 Next.js BFF からの内部呼び出しを想定している。
 
-認証の本実装は [issue #42](https://github.com/ushinotan/nikke_unionraid_bot/issues/42) を参照。
+## ⚠️ セキュリティ / 認証に関する重要な注意事項
+
+**このAPIは内部向け（Internal-Only）として設計されています。**
+
+- **公開禁止**: これらのエンドポイントを直接インターネットに公開しないでください
+- **想定用途**: Next.js BFF または信頼されたネットワーク内からのアクセスのみ
+- **認証未実装**: 本 PR では認証機能を実装していません
+- **本格的な認証**: Discord OAuth を含む認証機能は [issue #42](https://github.com/ushinotan/nikke_unionraid_bot/issues/42) で実装予定
+
+### 推奨される構成
+
+```
+[ブラウザ] → [Next.js BFF (認証あり)] → [Spring Boot API (内部向け)] → [DB]
+```
+
+Next.js BFF が認証を担当し、Spring Boot API は信頼されたバックエンド間の通信としてのみ利用してください。
 
 ## エンドポイント
 
@@ -21,16 +36,18 @@ Next.js BFF からの内部呼び出しを想定している。
 {
   "guilds": [
     {
-      "guildId": 123456789012345678,
+      "guildId": "123456789012345678",
       "createdAt": "2024-01-15T12:00:00Z"
     },
     {
-      "guildId": 987654321098765432,
+      "guildId": "987654321098765432",
       "createdAt": "2024-01-20T15:30:00Z"
     }
   ]
 }
 ```
+
+**注**: Discord Snowflake ID (`guildId`) は文字列として返されます。JavaScript の Number 型では精度が失われる可能性があるためです。
 
 ---
 
@@ -54,12 +71,12 @@ Next.js BFF からの内部呼び出しを想定している。
   "raids": [
     {
       "id": 1,
-      "guildId": 123456789012345678,
+      "guildId": "123456789012345678",
       "raidName": "レイド2024-01",
       "startTime": "2024-01-20T10:00:00Z",
       "endTime": "2024-01-21T10:00:00Z",
       "notifyTime": "2024-01-20T09:00:00Z",
-      "channelId": 111222333444555666,
+      "channelId": "111222333444555666",
       "ranking": 5,
       "percentage": 1.23,
       "finishedAt": "2024-01-21T10:05:00Z",
@@ -67,12 +84,12 @@ Next.js BFF からの内部呼び出しを想定している。
     },
     {
       "id": 2,
-      "guildId": 123456789012345678,
+      "guildId": "123456789012345678",
       "raidName": "レイド2024-02",
       "startTime": "2024-02-01T10:00:00Z",
       "endTime": "2024-02-02T10:00:00Z",
       "notifyTime": null,
-      "channelId": 111222333444555666,
+      "channelId": "111222333444555666",
       "ranking": null,
       "percentage": null,
       "finishedAt": null,
@@ -81,6 +98,8 @@ Next.js BFF からの内部呼び出しを想定している。
   ]
 }
 ```
+
+**注**: `guildId` と `channelId` は文字列として返されます。
 
 #### エラーレスポンス
 
@@ -107,12 +126,12 @@ Next.js BFF からの内部呼び出しを想定している。
 {
   "raid": {
     "id": 1,
-    "guildId": 123456789012345678,
+    "guildId": "123456789012345678",
     "raidName": "レイド2024-01",
     "startTime": "2024-01-20T10:00:00Z",
     "endTime": "2024-01-21T10:00:00Z",
     "notifyTime": "2024-01-20T09:00:00Z",
-    "channelId": 111222333444555666,
+    "channelId": "111222333444555666",
     "ranking": 5,
     "percentage": 1.23,
     "finishedAt": "2024-01-21T10:05:00Z",
@@ -121,14 +140,14 @@ Next.js BFF からの内部呼び出しを想定している。
   "participants": [
     {
       "id": 1,
-      "userId": 100000000000000001,
+      "userId": "100000000000000001",
       "username": "ユーザー1",
       "score": 1500000,
       "joinedAt": "2024-01-20T10:05:00Z"
     },
     {
       "id": 2,
-      "userId": 100000000000000002,
+      "userId": "100000000000000002",
       "username": "ユーザー2",
       "score": 1200000,
       "joinedAt": "2024-01-20T10:10:00Z"
@@ -137,7 +156,7 @@ Next.js BFF からの内部呼び出しを想定している。
   "reports": [
     {
       "id": 1,
-      "userId": 100000000000000001,
+      "userId": "100000000000000001",
       "username": "ユーザー1",
       "difficulty": "hard",
       "is3t": 1,
@@ -145,7 +164,7 @@ Next.js BFF からの内部呼び出しを想定している。
     },
     {
       "id": 2,
-      "userId": 100000000000000002,
+      "userId": "100000000000000002",
       "username": "ユーザー2",
       "difficulty": "normal",
       "is3t": 1,
@@ -154,6 +173,8 @@ Next.js BFF からの内部呼び出しを想定している。
   ]
 }
 ```
+
+**注**: `guildId`, `channelId`, `userId` は全て文字列として返されます。
 
 #### エラーレスポンス
 
@@ -191,8 +212,21 @@ Next.js BFF からの内部呼び出しを想定している。
 
 参加者リストは `score` の降順でソートされている。
 
+## データ型に関する重要な注意
+
+### Snowflake ID の取り扱い
+
+Discord の Snowflake ID (`guildId`, `userId`, `channelId`) は以下の理由で**文字列**として返されます:
+
+- JavaScript の `Number` 型は 53 ビットまでしか正確に表現できない
+- Discord Snowflake ID は 64 ビット整数であり、精度が失われる可能性がある
+- 文字列として扱うことで精度を保証
+
+フロントエンドでは、これらの ID を文字列として扱い、数値演算を行わないでください。
+
 ## 実装メモ
 
-- 内部向け API として設計されている (Next.js BFF からの呼び出しを想定)
+- **内部向け API として設計** (Next.js BFF または信頼されたネットワークからの呼び出しのみ)
+- **公開 Web アクセスは禁止**: このエンドポイントを直接インターネットに公開しないでください
 - 認証機能の実装は別 Issue (#42) で対応予定
 - Discord bot の既存機能には影響を与えない読み取り専用 API

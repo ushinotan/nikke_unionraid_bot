@@ -16,18 +16,25 @@ class UnionRaidRepository (
 
     /**
      * 指定されたギルドIDに基づき、全てのユニオンレイド情報を取得します。
-     * 作成日時の降順でソートされます。
+     * 作成日時の降順でソートされます。NULL の created_at は最後になります。
      *
      * @param guildId 検索対象のギルドのID
      * @return 指定されたギルドのユニオンレイド一覧
      */
     fun findUnionRaidsByGuildId(guildId: Long): List<UnionRaid> {
-        val query = QueryDsl.from(unionRaidTable)
+        // Komapper では NULLS LAST の直接サポートがないため、
+        // アプリケーション側でソートする
+        val raids = QueryDsl.from(unionRaidTable)
             .where {
                 unionRaidTable.guildId eq guildId
             }
-            .orderBy(unionRaidTable.createdAt.desc())
-        return database.runQuery(query)
+            .let { database.runQuery(it) }
+        
+        // created_at が NULL でないものを降順、NULL のものを最後に
+        return raids.sortedWith(
+            compareByDescending<UnionRaid> { it.createdAt != null }
+                .thenByDescending { it.createdAt }
+        )
     }
 
     /**

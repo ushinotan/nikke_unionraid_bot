@@ -52,8 +52,10 @@ class RaidApiControllerTest(
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.guilds").isArray)
             .andExpect(jsonPath("$.guilds.length()").value(2))
-            .andExpect(jsonPath("$.guilds[?(@.guildId == 100000001)]").exists())
-            .andExpect(jsonPath("$.guilds[?(@.guildId == 100000002)]").exists())
+            .andExpect(jsonPath("$.guilds[?(@.guildId == '100000001')]").exists())
+            .andExpect(jsonPath("$.guilds[?(@.guildId == '100000002')]").exists())
+            // Snowflake IDが文字列としてシリアライズされることを確認
+            .andExpect(jsonPath("$.guilds[0].guildId").isString)
     }
 
     @Test
@@ -179,15 +181,18 @@ class RaidApiControllerTest(
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.raid.id").value(raid.id))
             .andExpect(jsonPath("$.raid.raidName").value("詳細テストレイド"))
+            // Snowflake IDsが文字列としてシリアライズされることを確認
+            .andExpect(jsonPath("$.raid.guildId").isString)
+            .andExpect(jsonPath("$.raid.channelId").isString)
             .andExpect(jsonPath("$.participants").isArray)
             .andExpect(jsonPath("$.participants.length()").value(2))
-            .andExpect(jsonPath("$.participants[0].userId").value(300_000_001L))
+            .andExpect(jsonPath("$.participants[0].userId").value("300000001"))
             .andExpect(jsonPath("$.participants[0].score").value(1500000))
-            .andExpect(jsonPath("$.participants[1].userId").value(300_000_002L))
+            .andExpect(jsonPath("$.participants[1].userId").value("300000002"))
             .andExpect(jsonPath("$.participants[1].score").value(1200000))
             .andExpect(jsonPath("$.reports").isArray)
             .andExpect(jsonPath("$.reports.length()").value(1))
-            .andExpect(jsonPath("$.reports[0].userId").value(300_000_001L))
+            .andExpect(jsonPath("$.reports[0].userId").value("300000001"))
             .andExpect(jsonPath("$.reports[0].difficulty").value("hard"))
             .andExpect(jsonPath("$.reports[0].is3t").value(1))
     }
