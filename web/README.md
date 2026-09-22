@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NIKKE Union Raid Bot - Web フロントエンド
 
-## Getting Started
+このプロジェクトは [Next.js](https://nextjs.org) で構築された、NIKKE Union Raid Bot のウェブフロントエンドです。
 
-First, run the development server:
+## アーキテクチャ
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+ブラウザ → Next.js Route Handlers (BFF) → Spring Boot API → PostgreSQL
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Next.js は薄い BFF (Backend For Frontend) として動作します**
+- **Next.js は PostgreSQL に直接接続しません**
+- すべてのデータアクセスは Spring Boot API 経由で行われます
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 環境変数の設定
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 必要な環境変数
 
-## Learn More
+Next.js プロジェクトでは、以下の環境変数のみが必要です：
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Spring Boot API のベース URL
+BACKEND_URL=http://localhost:8080
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`.env.local` ファイルを作成して設定してください：
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# .env.local
+BACKEND_URL=http://localhost:8080
+```
 
-## Deploy on Vercel
+### 不要な環境変数
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**以下の環境変数は Next.js では不要です（Spring Boot 側でのみ使用されます）：**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `DATABASE_URL`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- その他のデータベース接続情報
+
+Next.js プロジェクトに PostgreSQL クライアント（`pg` など）をインストールする必要はありません。
+
+## 開発サーバーの起動
+
+```bash
+npm install
+npm run dev
+```
+
+開発サーバーは [http://localhost:3000](http://localhost:3000) で起動します。
+
+## API エンドポイント
+
+Next.js BFF が提供する API エンドポイント：
+
+- `GET /api/guilds` - ギルド一覧を取得
+- `GET /api/guilds/{guildId}/raids` - 指定ギルドのレイド一覧を取得
+- `GET /api/raids/{raidId}` - レイド詳細を取得
+
+これらのエンドポイントは Spring Boot API へのプロキシとして動作します。
+
+## Spring Boot API ドキュメント
+
+バックエンド API の詳細な仕様については、以下を参照してください：
+
+- [`kotlin/docs/API.md`](../kotlin/docs/API.md) - Spring Boot API の完全なドキュメント
+
+## デプロイ
+
+詳細は [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) を参照してください。
