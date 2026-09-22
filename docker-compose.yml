@@ -21,6 +21,26 @@ services:
     networks:
       - bot_network
 
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: nikke_unionraid_web
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://bot:8080
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+      - DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:-http://localhost:3000/api/auth/discord/callback}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - NODE_ENV=production
+    depends_on:
+      - bot
+    ports:
+      - "3000:3000"
+    networks:
+      - bot_network
+
   db:
     image: postgres:16-alpine
     container_name: nikke_unionraid_db

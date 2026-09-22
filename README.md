@@ -17,6 +17,9 @@ cp env.example .env
 - `POSTGRES_PASSWORD`: PostgreSQLのパスワード
 - `POSTGRES_HOST_PORT`: Postgresホストポート
 - `DEFAULT_TIMEZONE_HOURS`: ユーザー向け表示に使うタイムゾーンのUTCオフセット（デフォルト: `9` = JST）
+- `DISCORD_CLIENT_ID`: Discord OAuth用クライアントID
+- `DISCORD_CLIENT_SECRET`: Discord OAuth用クライアントシークレット
+- `SESSION_SECRET`: セッション暗号化キー（32文字以上のランダム文字列を推奨）
 
 
 ### 2. Dockerコンテナの起動
@@ -24,9 +27,18 @@ cp env.example .env
 docker-compose up -d
 ```
 
+起動後、以下のサービスが利用可能になります:
+- **ボット (Spring Boot)**: http://localhost:8080
+- **Web (Next.js)**: http://localhost:3000
+- **データベース (PostgreSQL)**: localhost:5432
+
 ### 3. ログの確認
 ```bash
+# ボットのログ
 docker-compose logs -f bot
+
+# Webのログ
+docker-compose logs -f web
 ```
 
 ### 4. データベースへの接続確認
@@ -98,6 +110,9 @@ docker-compose logs -f
 # ボットのログのみ
 docker-compose logs -f bot
 
+# Webのログのみ
+docker-compose logs -f web
+
 # データベースのログのみ
 docker-compose logs -f db
 ```
@@ -126,7 +141,19 @@ docker-compose logs -f db
 
 ユニオンレイドデータを表示する Web フロントエンドは `web/` ディレクトリにあります。
 
-### ローカル開発サーバーの起動
+### Docker Compose で起動（推奨）
+
+```bash
+# ルートディレクトリで実行
+docker-compose up -d
+```
+
+Web フロントエンドは http://localhost:3000 でアクセスできます。
+この方法では `web/.env` ファイルは不要です。環境変数はルートの `.env` から自動的に注入されます。
+
+### ローカル開発サーバーの起動（開発時のみ）
+
+Docker を使わずにローカルで開発する場合:
 
 ```bash
 cd web
@@ -134,7 +161,10 @@ npm install
 npm run dev
 ```
 
-開発サーバーが起動したら、ブラウザで http://localhost:3000 にアクセスしてください。
+**注意**: ローカル開発時は、バックエンドAPIが http://localhost:8080 で起動している必要があります。
+環境変数は以下のように設定してください:
+- `BACKEND_URL=http://localhost:8080`
+- `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `SESSION_SECRET` など
 
 ### その他のコマンド
 
