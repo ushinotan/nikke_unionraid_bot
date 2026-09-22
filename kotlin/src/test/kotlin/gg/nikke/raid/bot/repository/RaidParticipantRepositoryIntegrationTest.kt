@@ -9,7 +9,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestConstructor
 import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
-import kotlin.math.abs
 
 @SpringBootTest
 @Transactional
@@ -136,12 +135,7 @@ open class RaidParticipantRepositoryIntegrationTest(
         assertEquals(1500000, participant.score)
         
         // joined_at は元の値を保持（最初の参加時刻）
-        // PostgreSQL の timestamptz はマイクロ秒精度のため、ナノ秒以下は切り捨てられる
-        // また、JDBC ドライバーのタイムゾーン処理により僅かなずれが生じる可能性があるため
-        // 秒単位で一致していることを確認する
-        val expectedEpochSecond = now.toInstant().epochSecond
-        val actualEpochSecond = participant.joinedAt?.toInstant()?.epochSecond ?: 0
-        assertEquals(expectedEpochSecond, actualEpochSecond, "joined_at should preserve the original timestamp (within 1 second)")
+        assertEquals(now.toInstant(), participant.joinedAt?.toInstant())
     }
 
     private fun createRaid(guildId: Long, now: OffsetDateTime): UnionRaid {
