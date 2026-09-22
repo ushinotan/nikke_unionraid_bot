@@ -72,10 +72,10 @@ Docker Compose でコンテナ間通信を行う場合は、サービス名を�
 
 ```bash
 # コンテナ間通信の例
-BACKEND_URL=http://api:8080
+BACKEND_URL=http://bot:8080
 ```
 
-**注意**: コンテナ内では `localhost` はコンテナ自身を指すため、他のコンテナにアクセスできません。Spring Boot API のサービス名（例: `api`）を使用してください。
+**注意**: コンテナ内では `localhost` はコンテナ自身を指すため、他のコンテナにアクセスできません。Spring Boot API のサービス名（`bot`）を使用してください。
 
 ### 不要な環境変数
 

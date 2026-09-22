@@ -28,9 +28,10 @@ docker-compose up -d
 ```
 
 起動後、以下のサービスが利用可能になります:
-- **ボット (Spring Boot)**: http://localhost:8080
-- **Web (Next.js)**: http://localhost:3000
-- **データベース (PostgreSQL)**: localhost:5432
+- **Web (Next.js)**: http://localhost:3000（メインのユーザー向けフロントエンド）
+- **データベース (PostgreSQL)**: localhost:${POSTGRES_HOST_PORT}（デフォルト 5432）
+
+**注意**: ボット（Spring Boot API）はポート 8080 で起動しますが、これは内部 API / デバッグ用です。通常は Web フロントエンド (http://localhost:3000) を使用してください。
 
 ### 3. ログの確認
 ```bash
@@ -141,7 +142,7 @@ docker-compose logs -f db
 
 ユニオンレイドデータを表示する Web フロントエンドは `web/` ディレクトリにあります。
 
-### Docker Compose で起動（推奨）
+### Docker Compose で起動（本番相当の動作確認）
 
 ```bash
 # ルートディレクトリで実行
@@ -151,9 +152,14 @@ docker-compose up -d
 Web フロントエンドは http://localhost:3000 でアクセスできます。
 この方法では `web/.env` ファイルは不要です。環境変数はルートの `.env` から自動的に注入されます。
 
-### ローカル開発サーバーの起動（開発時のみ）
+**注意**: この方法は本番相当のイメージ（`NODE_ENV=production`）で起動します。
+- ホットモジュールリロード（HMR）は動作しません
+- セッションクッキーの `secure` 属性が有効になります
+- フロントエンド開発時は下記の「ローカル開発サーバー」を使用してください
 
-Docker を使わずにローカルで開発する場合:
+### ローカル開発サーバーの起動（フロントエンド開発時）
+
+Docker を使わずにローカルで開発する場合（ホットリロード対応）:
 
 ```bash
 cd web
@@ -162,9 +168,11 @@ npm run dev
 ```
 
 **注意**: ローカル開発時は、バックエンドAPIが http://localhost:8080 で起動している必要があります。
-環境変数は以下のように設定してください:
-- `BACKEND_URL=http://localhost:8080`
+`web/.env.local` ファイルを作成して、以下の環境変数を設定してください:
+- `BACKEND_URL=http://localhost:8080`（ローカル npm dev 用）
 - `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `SESSION_SECRET` など
+
+詳細は `web/README.md` を参照してください。
 
 ### その他のコマンド
 
