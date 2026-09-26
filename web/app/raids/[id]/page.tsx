@@ -117,8 +117,10 @@ export default function RaidDetailPage({ params }: { params: Params }) {
               <dd className="text-slate-200 font-mono">{data.raid.id}</dd>
             </div>
             <div className="flex justify-between border-b border-slate-800 pb-2">
-              <dt className="text-slate-400">ギルドID:</dt>
-              <dd className="text-slate-200 font-mono">{data.raid.guildId}</dd>
+              <dt className="text-slate-400">ギルド:</dt>
+              <dd className="text-slate-200 font-mono">
+                {data.raid.guildName || data.raid.guildId}
+              </dd>
             </div>
             <div className="flex justify-between border-b border-slate-800 pb-2">
               <dt className="text-slate-400">順位:</dt>

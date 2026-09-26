@@ -5,6 +5,7 @@ import {
   validateSnowflakeId,
 } from "@/lib/backend-client";
 import type { RaidsResponse } from "@/lib/api-types";
+import { getSession } from "@/lib/session";
 
 export async function GET(
   _request: Request,
@@ -25,7 +26,20 @@ export async function GET(
     const data = await fetchFromBackend<RaidsResponse>(
       `/api/guilds/${encodeURIComponent(guildId)}/raids`
     );
-    return NextResponse.json(data);
+
+    const session = await getSession();
+    const guildMetadata = (session.guilds || []).find((g) => g.id === guildId);
+
+    const enrichedData = {
+      ...data,
+      raids: data.raids.map((raid) => ({
+        ...raid,
+        guildName: guildMetadata?.name,
+        guildIcon: guildMetadata?.icon,
+      })),
+    };
+
+    return NextResponse.json(enrichedData);
   } catch (error) {
     return handleBackendError(error);
   }

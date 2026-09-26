@@ -1,6 +1,8 @@
 export interface GuildDto {
   guildId: string;
   createdAt: string;
+  name?: string;
+  icon?: string | null;
 }
 
 export interface GuildsResponse {
@@ -19,6 +21,8 @@ export interface RaidSummaryDto {
   percentage: number | null;
   finishedAt: string | null;
   createdAt: string;
+  guildName?: string;
+  guildIcon?: string | null;
 }
 
 export interface RaidsResponse {
