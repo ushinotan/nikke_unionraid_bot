@@ -141,8 +141,13 @@ export async function GET(request: NextRequest) {
       registeredGuildIds.includes(gid)
     );
 
+    const intersectedGuilds = userGuilds
+      .filter((g) => intersectedGuildIds.includes(g.id))
+      .map((g) => ({ id: g.id, name: g.name, icon: g.icon }));
+
     session.userId = user.id;
     session.guildIds = intersectedGuildIds;
+    session.guilds = intersectedGuilds;
 
     if (
       session.selectedGuildId &&

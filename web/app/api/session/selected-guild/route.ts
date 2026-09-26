@@ -7,6 +7,7 @@ export async function GET() {
     const session = await getSession();
     return NextResponse.json({
       selectedGuildId: session.selectedGuildId || null,
+      guilds: session.guilds || [],
     });
   } catch (error) {
     console.error("[Session] Failed to get selected guild:", error);

@@ -1,9 +1,16 @@
 import { getIronSession, IronSession, SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 
+export interface GuildMetadata {
+  id: string;
+  name: string;
+  icon?: string | null;
+}
+
 export interface SessionData {
   userId?: string;
   guildIds?: string[];
+  guilds?: GuildMetadata[];
   selectedGuildId?: string;
   state?: string;
 }
