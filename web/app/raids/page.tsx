@@ -130,6 +130,10 @@ export default function RaidsPage() {
   }, [selectedGuildId]);
 
   const getGuildDisplayName = (guildId: string): string => {
+    const guild = guilds.find((g) => g.guildId === guildId);
+    if (guild?.name) {
+      return guild.name;
+    }
     const metadata = guildMetadata.find((g) => g.id === guildId);
     return metadata?.name || guildId;
   };
