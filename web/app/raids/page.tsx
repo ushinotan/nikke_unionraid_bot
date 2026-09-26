@@ -201,13 +201,25 @@ export default function RaidsPage() {
     );
   }
 
+  const handleLogout = () => {
+    window.location.href = "/api/auth/logout";
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
       <div className="bg-[#1a1a1a] border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-white mb-4">
-            NIKKE ユニオンレイド 戦績
-          </h1>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold text-white">
+              NIKKE ユニオンレイド 戦績
+            </h1>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded transition-colors text-sm"
+            >
+              ログアウト
+            </button>
+          </div>
 
           {guilds.length > 1 ? (
             <div className="flex flex-col gap-2">
