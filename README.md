@@ -17,6 +17,9 @@ cp env.example .env
 - `POSTGRES_PASSWORD`: PostgreSQLのパスワード
 - `POSTGRES_HOST_PORT`: Postgresホストポート
 - `DEFAULT_TIMEZONE_HOURS`: ユーザー向け表示に使うタイムゾーンのUTCオフセット（デフォルト: `9` = JST）
+- `DISCORD_CLIENT_ID`: Discord OAuth用クライアントID
+- `DISCORD_CLIENT_SECRET`: Discord OAuth用クライアントシークレット
+- `SESSION_SECRET`: セッション暗号化キー（32文字以上のランダム文字列を推奨）
 
 
 ### 2. Dockerコンテナの起動
@@ -24,9 +27,19 @@ cp env.example .env
 docker-compose up -d
 ```
 
+起動後、以下のサービスが利用可能になります:
+- **Web (Next.js)**: http://localhost:3000（メインのユーザー向けフロントエンド）
+- **データベース (PostgreSQL)**: localhost:${POSTGRES_HOST_PORT}（デフォルト 5432）
+
+**注意**: ボット（Spring Boot API）はポート 8080 で起動しますが、これは内部 API / デバッグ用です。通常は Web フロントエンド (http://localhost:3000) を使用してください。
+
 ### 3. ログの確認
 ```bash
+# ボットのログ
 docker-compose logs -f bot
+
+# Webのログ
+docker-compose logs -f web
 ```
 
 ### 4. データベースへの接続確認
@@ -98,6 +111,9 @@ docker-compose logs -f
 # ボットのログのみ
 docker-compose logs -f bot
 
+# Webのログのみ
+docker-compose logs -f web
+
 # データベースのログのみ
 docker-compose logs -f db
 ```
@@ -126,7 +142,24 @@ docker-compose logs -f db
 
 ユニオンレイドデータを表示する Web フロントエンドは `web/` ディレクトリにあります。
 
-### ローカル開発サーバーの起動
+### Docker Compose で起動（本番相当の動作確認）
+
+```bash
+# ルートディレクトリで実行
+docker-compose up -d
+```
+
+Web フロントエンドは http://localhost:3000 でアクセスできます。
+この方法では `web/.env` ファイルは不要です。環境変数はルートの `.env` から自動的に注入されます。
+
+**注意**: この方法は本番相当のイメージ（`NODE_ENV=production`）で起動します。
+- ホットモジュールリロード（HMR）は動作しません
+- セッションクッキーの `secure` 属性が有効になります
+- フロントエンド開発時は下記の「ローカル開発サーバー」を使用してください
+
+### ローカル開発サーバーの起動（フロントエンド開発時）
+
+Docker を使わずにローカルで開発する場合（ホットリロード対応）:
 
 ```bash
 cd web
@@ -134,7 +167,12 @@ npm install
 npm run dev
 ```
 
-開発サーバーが起動したら、ブラウザで http://localhost:3000 にアクセスしてください。
+**注意**: ローカル開発時は、バックエンドAPIが http://localhost:8080 で起動している必要があります。
+`web/.env.local` ファイルを作成して、以下の環境変数を設定してください:
+- `BACKEND_URL=http://localhost:8080`（ローカル npm dev 用）
+- `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `SESSION_SECRET` など
+
+詳細は `web/README.md` を参照してください。
 
 ### その他のコマンド
 

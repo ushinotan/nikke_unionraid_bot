@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
-import { sessionOptions, type SessionData } from "@/lib/session";
+import { getSessionOptions, type SessionData } from "@/lib/session";
 
 const protectedPaths = ["/raids"];
 const protectedApiPaths = ["/api/guilds", "/api/raids", "/api/session"];
@@ -23,7 +23,7 @@ export async function middleware(request: NextRequest) {
   const session = await getIronSession<SessionData>(
     request,
     response,
-    sessionOptions
+    getSessionOptions()
   );
 
   if (!session.userId) {
