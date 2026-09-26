@@ -21,6 +21,8 @@ export interface RaidSummaryDto {
   percentage: number | null;
   finishedAt: string | null;
   createdAt: string;
+  guildName?: string;
+  guildIcon?: string | null;
 }
 
 export interface RaidsResponse {
