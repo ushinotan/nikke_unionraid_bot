@@ -4,8 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { GuildDto, RaidSummaryDto } from "@/lib/api-types";
 
+interface GuildMetadata {
+  id: string;
+  name: string;
+  icon?: string | null;
+}
+
 export default function RaidsPage() {
   const [guilds, setGuilds] = useState<GuildDto[]>([]);
+  const [guildMetadata, setGuildMetadata] = useState<GuildMetadata[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
   const [raids, setRaids] = useState<RaidSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,11 +40,12 @@ export default function RaidsPage() {
         const guildsData = await guildsResponse.json();
         const sessionData = sessionResponse.ok
           ? await sessionResponse.json()
-          : { selectedGuildId: null };
+          : { selectedGuildId: null, guilds: [] };
 
         if (!cancelled) {
           const userGuilds = guildsData.guilds || [];
           setGuilds(userGuilds);
+          setGuildMetadata(sessionData.guilds || []);
 
           if (userGuilds.length > 0) {
             const savedGuildId = sessionData.selectedGuildId;
@@ -121,6 +129,15 @@ export default function RaidsPage() {
     };
   }, [selectedGuildId]);
 
+  const getGuildDisplayName = (guildId: string): string => {
+    const guild = guilds.find((g) => g.guildId === guildId);
+    if (guild?.name) {
+      return guild.name;
+    }
+    const metadata = guildMetadata.find((g) => g.id === guildId);
+    return metadata?.name || guildId;
+  };
+
   const getRaidStatus = (raid: RaidSummaryDto): string => {
     if (raid.finishedAt) {
       return "終了";
@@ -184,15 +201,27 @@ export default function RaidsPage() {
     );
   }
 
+  const handleLogout = () => {
+    window.location.href = "/api/auth/logout";
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
       <div className="bg-[#1a1a1a] border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-white mb-4">
-            NIKKE ユニオンレイド 戦績
-          </h1>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold text-white">
+              NIKKE ユニオンレイド 戦績
+            </h1>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded transition-colors text-sm"
+            >
+              ログアウト
+            </button>
+          </div>
 
-          {guilds.length > 1 && (
+          {guilds.length > 1 ? (
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-3">
                 <label htmlFor="guild-select" className="text-slate-400 font-medium">
@@ -206,13 +235,20 @@ export default function RaidsPage() {
                 >
                   {guilds.map((guild) => (
                     <option key={guild.guildId} value={guild.guildId}>
-                      {guild.guildId}
+                      {getGuildDisplayName(guild.guildId)}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
-          )}
+          ) : guilds.length === 1 ? (
+            <div className="flex items-center gap-3">
+              <span className="text-slate-400 font-medium">ギルド:</span>
+              <span className="text-slate-200 font-medium">
+                {getGuildDisplayName(guilds[0].guildId)}
+              </span>
+            </div>
+          ) : null}
         </div>
       </div>
 

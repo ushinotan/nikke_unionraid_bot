@@ -37,7 +37,20 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(data);
+    const guildMetadata = (session.guilds || []).find(
+      (g) => g.id === data.raid.guildId
+    );
+
+    const enrichedData = {
+      ...data,
+      raid: {
+        ...data.raid,
+        guildName: guildMetadata?.name,
+        guildIcon: guildMetadata?.icon,
+      },
+    };
+
+    return NextResponse.json(enrichedData);
   } catch (error) {
     return handleBackendError(error);
   }

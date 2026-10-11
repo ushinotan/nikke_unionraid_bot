@@ -16,7 +16,20 @@ export async function GET() {
       userGuildIds.includes(guild.guildId)
     );
 
-    return NextResponse.json({ guilds: filteredGuilds });
+    const guildMetadataMap = new Map(
+      (session.guilds || []).map((g) => [g.id, g])
+    );
+
+    const guildsWithMetadata = filteredGuilds.map((guild) => {
+      const metadata = guildMetadataMap.get(guild.guildId);
+      return {
+        ...guild,
+        name: metadata?.name,
+        icon: metadata?.icon,
+      };
+    });
+
+    return NextResponse.json({ guilds: guildsWithMetadata });
   } catch (error) {
     return handleBackendError(error);
   }
