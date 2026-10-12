@@ -291,9 +291,10 @@ class RaidNotificationScheduler(
     }
 
     fun cleanupAfterRaidEnd(jda: JDA, guildId: Long, raidId: Int) {
-        disableReportButton(jda, raidId)
+        // スケジュールの取り消しを先に行う。ボタン無効化(Discord/DB アクセス)が失敗しても取り消し漏れを起こさない
         cancelNotification(guildId, raidId)
         cancelAutoEnd(raidId)
+        disableReportButton(jda, raidId)
     }
 
     fun cancelNotification(guildId: Long, raidId: Int? = null) {
@@ -307,12 +308,19 @@ class RaidNotificationScheduler(
     }
 
     fun updateRaidMessage(jda: JDA, raidId: Int) {
+        // 報告の読み出しは呼び出し元スレッドで行う。
+        // JDA のコールバックスレッドで読むと、連続報告時に「DB を読んだ順」と「編集を積む順」が入れ替わり得るため。
+        val reports = try {
+            raidReportRepository.findRaidReportsByRaidId(raidId)
+        } catch (e: Exception) {
+            logger.error("レイドメッセージ更新用の報告取得に失敗しました: raidId=$raidId", e)
+            return
+        }
+        val normalUsers = reports.filter { it.difficulty == Difficulty.NORMAL.value }.map { it.username }
+        val hardUsers = reports.filter { it.difficulty == Difficulty.HARD.value }.map { it.username }
+
         withNotifyMessage(jda, raidId) { message ->
             try {
-                val reports = raidReportRepository.findRaidReportsByRaidId(raidId)
-                val normalUsers = reports.filter { it.difficulty == Difficulty.NORMAL.value }.map { it.username }
-                val hardUsers = reports.filter { it.difficulty == Difficulty.HARD.value }.map { it.username }
-
                 val embed = message.embeds.firstOrNull() ?: return@withNotifyMessage
                 val updatedEmbed = EmbedBuilder()
                     .setTitle(embed.title)
@@ -343,21 +351,29 @@ class RaidNotificationScheduler(
     /**
      * DB に保存された message ID から通知メッセージを取得し、[action] を実行する。
      * message ID 未保存(通知前・旧データ)、チャンネル未解決、メッセージ削除済みの場合は何もしない。
+     *
+     * `retrieveMessageById` は REST 実行前に権限(`VIEW_CHANNEL` / `MESSAGE_HISTORY`)を同期的に検査し、
+     * 不足していると `InsufficientPermissionException` を直接 throw する(failure コールバックには来ない)。
+     * DB 例外も含め、呼び出し元(`/レイド終了` の応答やスケジューラの後始末)へ伝播させないよう、ここで吸収する。
      */
     private fun withNotifyMessage(jda: JDA, raidId: Int, action: (Message) -> Unit) {
-        val raid = unionRaidRepository.findUnionRaidById(raidId) ?: return
-        val messageId = raid.notifyMessageId ?: run {
-            logger.debug("通知メッセージIDが未保存のためスキップ: raidId=$raidId")
-            return
+        try {
+            val raid = unionRaidRepository.findUnionRaidById(raidId) ?: return
+            val messageId = raid.notifyMessageId ?: run {
+                logger.debug("通知メッセージIDが未保存のためスキップ: raidId=$raidId")
+                return
+            }
+            val channel = resolveMessageChannel(jda, raid.channelId) ?: run {
+                logger.warn("通知チャンネルが見つかりません: channelId=${raid.channelId} raidId=$raidId")
+                return
+            }
+            channel.retrieveMessageById(messageId).queue(
+                { message -> action(message) },
+                { e -> logger.warn("通知メッセージの取得に失敗しました: raidId=$raidId messageId=$messageId", e) },
+            )
+        } catch (e: Exception) {
+            logger.warn("通知メッセージの取得を開始できませんでした: raidId=$raidId", e)
         }
-        val channel = resolveMessageChannel(jda, raid.channelId) ?: run {
-            logger.warn("通知チャンネルが見つかりません: channelId=${raid.channelId} raidId=$raidId")
-            return
-        }
-        channel.retrieveMessageById(messageId).queue(
-            { message -> action(message) },
-            { e -> logger.warn("通知メッセージの取得に失敗しました: raidId=$raidId messageId=$messageId", e) },
-        )
     }
 
     @PreDestroy

@@ -19,7 +19,6 @@ import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
@@ -146,14 +145,16 @@ class RaidNotificationSchedulerTest {
     }
 
     @Test
-    fun `updateRaidMessage_チャンネルを解決できなければメッセージ取得を試みない`() {
+    fun `updateRaidMessage_チャンネルを解決できなくても例外にならずメッセージ取得を試みない`() {
         `when`(unionRaidRepository.findUnionRaidById(raidId)).thenReturn(raid(notifyMessageId = messageId))
         `when`(jda.getTextChannelById(channelId)).thenReturn(null)
         `when`(jda.guilds).thenReturn(emptyList())
 
         scheduler.updateRaidMessage(jda, raidId)
 
-        verify(raidReportRepository, never()).findRaidReportsByRaidId(raidId)
+        // チャンネル解決を試みた(フォールバックで全ギルドも検索した)が、見つからないので何も起きない
+        verify(jda).getTextChannelById(channelId)
+        verify(jda).guilds
     }
 
     @Test
@@ -193,5 +194,96 @@ class RaidNotificationSchedulerTest {
         scheduler.cleanupAfterRaidEnd(jda, guildId = 1L, raidId = raidId)
 
         verify(message).editMessageComponents()
+    }
+
+    // ----------------------------------------------------------------
+    // 例外の吸収(権限不足などで retrieveMessageById が同期例外を投げるケース)
+    // ----------------------------------------------------------------
+
+    /** channelId のチャンネルは解決できるが、retrieveMessageById が同期で例外を投げる状態にする。 */
+    private fun stubRetrieveThrows(error: RuntimeException) {
+        val channel = mock(TextChannel::class.java)
+        `when`(jda.getTextChannelById(channelId)).thenReturn(channel)
+        `when`(channel.retrieveMessageById(messageId)).thenThrow(error)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun autoEndTasks(): Map<Int, *> {
+        val field = RaidNotificationScheduler::class.java.getDeclaredField("scheduledAutoEndTasks")
+        field.isAccessible = true
+        return field.get(scheduler) as Map<Int, *>
+    }
+
+    @Test
+    fun `cleanupAfterRaidEnd_retrieveMessageByIdが同期例外を投げても伝播せず自動終了の予約も解除される`() {
+        `when`(unionRaidRepository.findUnionRaidById(raidId)).thenReturn(raid(notifyMessageId = messageId))
+        stubRetrieveThrows(IllegalStateException("Missing permission: MESSAGE_HISTORY"))
+        scheduler.scheduleAutoEnd(1L, raidId, channelId, "ユニオンレイド", delaySeconds = 3600, jda = jda)
+        assertEquals(1, autoEndTasks().size)
+
+        scheduler.cleanupAfterRaidEnd(jda, guildId = 1L, raidId = raidId)
+
+        assertEquals(0, autoEndTasks().size)
+    }
+
+    @Test
+    fun `updateRaidMessage_retrieveMessageByIdが同期例外を投げても伝播しない`() {
+        `when`(unionRaidRepository.findUnionRaidById(raidId)).thenReturn(raid(notifyMessageId = messageId))
+        stubRetrieveThrows(IllegalStateException("Missing permission: MESSAGE_HISTORY"))
+
+        scheduler.updateRaidMessage(jda, raidId)
+    }
+
+    @Test
+    fun `disableReportButton_retrieveMessageByIdが同期例外を投げても伝播しない`() {
+        `when`(unionRaidRepository.findUnionRaidById(raidId)).thenReturn(raid(notifyMessageId = messageId))
+        stubRetrieveThrows(IllegalStateException("Missing permission: MESSAGE_HISTORY"))
+
+        scheduler.disableReportButton(jda, raidId)
+    }
+
+    @Test
+    fun `cleanupAfterRaidEnd_レイド取得でDB例外が出ても伝播せず自動終了の予約も解除される`() {
+        `when`(unionRaidRepository.findUnionRaidById(raidId)).thenThrow(IllegalStateException("db down"))
+        scheduler.scheduleAutoEnd(1L, raidId, channelId, "ユニオンレイド", delaySeconds = 3600, jda = jda)
+
+        scheduler.cleanupAfterRaidEnd(jda, guildId = 1L, raidId = raidId)
+
+        assertEquals(0, autoEndTasks().size)
+    }
+
+    @Test
+    fun `updateRaidMessage_報告取得でDB例外が出ても伝播せずDiscordに問い合わせない`() {
+        `when`(raidReportRepository.findRaidReportsByRaidId(raidId)).thenThrow(IllegalStateException("db down"))
+
+        scheduler.updateRaidMessage(jda, raidId)
+
+        verifyNoInteractions(jda)
+    }
+
+    @Test
+    fun `retrieveMessageByIdのfailureコールバックに来た場合はメッセージ操作を行わない`() {
+        val message = mock(Message::class.java)
+        val channel = mock(TextChannel::class.java)
+        @Suppress("UNCHECKED_CAST")
+        val restAction = mock(RestAction::class.java) as RestAction<Message>
+        `when`(unionRaidRepository.findUnionRaidById(raidId)).thenReturn(raid(notifyMessageId = messageId))
+        `when`(jda.getTextChannelById(channelId)).thenReturn(channel)
+        `when`(channel.retrieveMessageById(messageId)).thenReturn(restAction)
+        // Unknown Message など、取得失敗は failure コールバックで通知される
+        doAnswer { invocation ->
+            @Suppress("UNCHECKED_CAST")
+            (invocation.arguments[1] as Consumer<Throwable>).accept(IllegalStateException("Unknown Message"))
+            null
+        }.`when`(restAction).queue(
+            ArgumentMatchers.any<Consumer<in Message>>(),
+            ArgumentMatchers.any<Consumer<in Throwable>>(),
+        )
+
+        scheduler.updateRaidMessage(jda, raidId)
+        scheduler.disableReportButton(jda, raidId)
+
+        verifyNoInteractions(message)
+        verify(channel, org.mockito.Mockito.times(2)).retrieveMessageById(messageId)
     }
 }
