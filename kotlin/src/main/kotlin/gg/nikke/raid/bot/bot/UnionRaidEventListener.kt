@@ -222,43 +222,133 @@ class UnionRaidEventListener(
     }
 
     override fun onButtonInteraction(event: ButtonInteractionEvent) {
-        if (event.componentId != "raid_report") return
+        when (event.componentId) {
+            REPORT_BUTTON_ID -> handleReportButton(event)
+            REPORT_CANCEL_BUTTON_ID -> handleReportCancelButton(event)
+        }
+    }
 
-        val embed = event.message.embeds.firstOrNull()
-        val raidId = embed?.fields?.find { it.name == "レイドID" }?.value?.trim('`')?.toIntOrNull()
+    private fun extractRaidId(event: ButtonInteractionEvent): Int? =
+        event.message.embeds.firstOrNull()
+            ?.fields?.find { it.name == "レイドID" }?.value?.trim('`')?.toIntOrNull()
+
+    private fun handleReportButton(event: ButtonInteractionEvent) {
+        val raidId = extractRaidId(event)
+        if (raidId == null) {
+            event.reply("レイド情報を取得できませんでした。").setEphemeral(true).queue()
+            return
+        }
+        // 終了済みレイドでは難易度メニューを出さない（Bot 再起動後などでボタンが残っている場合の対策）
+        raidDomainService.ensureRaidActive(raidId).onFailure { error ->
+            event.reply(raidErrorMessage(error, "報告できません")).setEphemeral(true).queue()
+            return
+        }
+
+        val selectMenu = StringSelectMenu.create("$DIFFICULTY_SELECT_PREFIX$raidId")
+            .setPlaceholder("難易度を選択してください")
+            .addOption("ノーマル", Difficulty.NORMAL.value)
+            .addOption("ハード", Difficulty.HARD.value)
+            .build()
+        event.reply("難易度を選択してください:").addComponents(ActionRow.of(selectMenu)).setEphemeral(true).queue()
+    }
+
+    private fun handleReportCancelButton(event: ButtonInteractionEvent) {
+        val raidId = extractRaidId(event)
         if (raidId == null) {
             event.reply("レイド情報を取得できませんでした。").setEphemeral(true).queue()
             return
         }
 
-        val selectMenu = StringSelectMenu.create("difficulty_select_$raidId")
-            .setPlaceholder("難易度を選択してください")
-            .addOption("ノーマル", "normal")
-            .addOption("ハード", "hard")
+        raidDomainService.ensureRaidActive(raidId).onFailure { error ->
+            event.reply(raidErrorMessage(error, "報告を取り消せません")).setEphemeral(true).queue()
+            return
+        }
+
+        // 自分が報告済みの難易度だけを選択肢に出す（未報告の難易度を選べないようにする）
+        val reported = raidDomainService.findReportedDifficulties(raidId, event.user.idLong)
+        if (reported.isEmpty()) {
+            event.reply("取り消せる報告がありません。").setEphemeral(true).queue()
+            return
+        }
+
+        val selectMenu = StringSelectMenu.create("$CANCEL_SELECT_PREFIX$raidId")
+            .setPlaceholder("取り消す難易度を選択してください（複数選択可）")
+            .setRequiredRange(1, reported.size)
+            .apply { reported.forEach { addOption(it.label, it.value) } }
             .build()
-        event.reply("難易度を選択してください:").addComponents(ActionRow.of(selectMenu)).setEphemeral(true).queue()
+        event.reply("取り消す報告を選択してください:").addComponents(ActionRow.of(selectMenu)).setEphemeral(true).queue()
     }
 
     override fun onStringSelectInteraction(event: StringSelectInteractionEvent) {
-        if (!event.componentId.startsWith("difficulty_select_")) return
+        val componentId = event.componentId
+        when {
+            componentId.startsWith(DIFFICULTY_SELECT_PREFIX) -> handleDifficultySelect(event)
+            componentId.startsWith(CANCEL_SELECT_PREFIX) -> handleCancelSelect(event)
+        }
+    }
 
-        val raidId = event.componentId.removePrefix("difficulty_select_").toIntOrNull() ?: return
+    private fun handleDifficultySelect(event: StringSelectInteractionEvent) {
+        val raidId = event.componentId.removePrefix(DIFFICULTY_SELECT_PREFIX).toIntOrNull() ?: return
         val difficultyValue = event.values.firstOrNull() ?: return
         val difficulty = Difficulty.fromValue(difficultyValue)
+        val userId = event.user.idLong
+
+        val alreadyReported = raidDomainService.hasReported(raidId, userId, difficulty)
 
         val result = raidDomainService.reportThreeTurn(
             raidId = raidId,
-            userId = event.user.idLong,
+            userId = userId,
             username = event.member?.effectiveName ?: event.user.name,
             difficulty = difficulty,
         )
 
         result.onSuccess {
-            event.reply("報告を受け付けました。").setEphemeral(true).queue()
+            val message = if (alreadyReported) {
+                "${difficulty.label}は既に報告済みでした。報告時刻を更新しました。"
+            } else {
+                "報告を受け付けました。"
+            }
+            replaceSelectMenu(event, message)
             scheduler.updateRaidMessage(raidId)
         }.onFailure { error ->
-            event.reply("エラーが発生しました: ${error.message}").setEphemeral(true).queue()
+            replaceSelectMenu(event, raidErrorMessage(error, "報告できません"))
         }
+    }
+
+    private fun handleCancelSelect(event: StringSelectInteractionEvent) {
+        val raidId = event.componentId.removePrefix(CANCEL_SELECT_PREFIX).toIntOrNull() ?: return
+        val difficulties = event.values.map { Difficulty.fromValue(it) }.toSet()
+
+        val result = raidDomainService.cancelThreeTurnReports(
+            raidId = raidId,
+            userId = event.user.idLong,
+            difficulties = difficulties,
+        )
+
+        result.onSuccess { cancelled ->
+            if (cancelled.isEmpty()) {
+                replaceSelectMenu(event, "取り消せる報告がありませんでした。")
+                return@onSuccess
+            }
+            // 選択値ではなく、実際に取り消された難易度を表示する
+            val labels = cancelled.sortedBy { it.ordinal }.joinToString("・") { it.label }
+            replaceSelectMenu(event, "${labels}の報告を取り消しました。")
+            scheduler.updateRaidMessage(raidId)
+        }.onFailure { error ->
+            replaceSelectMenu(event, raidErrorMessage(error, "報告を取り消せません"))
+        }
+    }
+
+    /** 使用済みの選択メニューを結果メッセージに置き換え、再操作できないようにする。 */
+    private fun replaceSelectMenu(event: StringSelectInteractionEvent, message: String) {
+        event.editMessage(message).setComponents().queue()
+    }
+
+    private fun raidErrorMessage(error: Throwable, finishedSuffix: String): String = when (error) {
+        is RaidDomainError.RaidNotFound -> "レイド情報を取得できませんでした。"
+        is RaidDomainError.RaidAlreadyFinished -> "このレイドは既に終了しているため、$finishedSuffix。"
+        is RaidDomainError.NoDifficultySelected -> "取り消す難易度を選択してください。"
+        else -> "エラーが発生しました: ${error.message}"
     }
 
     override fun onGuildJoin(event: GuildJoinEvent) {
@@ -267,5 +357,12 @@ class UnionRaidEventListener(
 
     override fun onGuildLeave(event: GuildLeaveEvent) {
         guildRepository.deleteGuildById(event.guild.idLong)
+    }
+
+    companion object {
+        const val REPORT_BUTTON_ID = "raid_report"
+        const val REPORT_CANCEL_BUTTON_ID = "raid_report_cancel"
+        private const val DIFFICULTY_SELECT_PREFIX = "difficulty_select_"
+        private const val CANCEL_SELECT_PREFIX = "cancel_report_select_"
     }
 }

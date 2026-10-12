@@ -74,6 +74,47 @@ class RaidReportRepository(
     }
 
     /**
+     * 指定したレイド・ユーザーの3凸済み報告（`is3t = 1`）を全て取得する。
+     * 集計用の [findRaidReportsByRaidId] と同じ条件で、報告が複数難易度にまたがる場合は難易度の昇順で返す。
+     *
+     * @param raidId レイド ID
+     * @param userId ユーザー ID
+     * @return 該当する `RaidReport` のリスト。存在しない場合は空のリスト
+     */
+    fun findRaidReportsByRaidIdAndUserId(raidId: Int, userId: Long): List<RaidReport> {
+        val query = QueryDsl.from(raidReportTable)
+            .where {
+                raidReportTable.raidId eq raidId
+                raidReportTable.userId eq userId
+                raidReportTable.is3t eq 1
+            }
+            .orderBy(raidReportTable.difficulty)
+
+        return database.runQuery(query)
+    }
+
+    /**
+     * 指定したレイド・ユーザーの3凸報告を、指定した難易度分だけ削除する。
+     *
+     * @param raidId レイド ID
+     * @param userId ユーザー ID
+     * @param difficulties 削除対象の難易度（例: `normal`, `hard`）。空の場合は何も削除しない
+     * @return 削除された件数
+     */
+    fun deleteRaidReports(raidId: Int, userId: Long, difficulties: Collection<String>): Long {
+        if (difficulties.isEmpty()) return 0L
+
+        val query = QueryDsl.delete(raidReportTable)
+            .where {
+                raidReportTable.raidId eq raidId
+                raidReportTable.userId eq userId
+                raidReportTable.difficulty inList difficulties.toList()
+            }
+
+        return database.runQuery(query)
+    }
+
+    /**
      * レイド報告を挿入する。既に同じレイド ID、ユーザー ID、難易度の報告が存在する場合は、その報告を更新する。
      *
      * @param raidReport 挿入または更新する `RaidReport` オブジェクト
