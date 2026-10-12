@@ -34,7 +34,9 @@ class InternalApiTokenFilter(
     }
 
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
-        val path = request.requestURI.removePrefix(request.contextPath)
+        // requestURI は未デコード・`;` パラメータ付きの生の値で、Spring MVC のルーティング結果とズレる。
+        // コンテナがデコード・正規化した servletPath + pathInfo で判定し、バイパスを防ぐ。
+        val path = request.servletPath + (request.pathInfo ?: "")
         return !(path == "/api" || path.startsWith("/api/"))
     }
 

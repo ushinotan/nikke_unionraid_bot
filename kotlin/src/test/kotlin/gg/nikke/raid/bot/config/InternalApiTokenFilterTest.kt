@@ -19,7 +19,7 @@ class InternalApiTokenFilterTest {
         path: String,
         tokenHeader: String? = null,
     ): Pair<MockHttpServletResponse, MockFilterChain> {
-        val request = MockHttpServletRequest("GET", path)
+        val request = MockHttpServletRequest("GET", path).apply { servletPath = path }
         if (tokenHeader != null) {
             request.addHeader(InternalApiTokenFilter.HEADER_NAME, tokenHeader)
         }
@@ -78,6 +78,40 @@ class InternalApiTokenFilterTest {
 
         assertEquals(200, response.status)
         assertNotNull(chain.request)
+    }
+
+    @Test
+    fun `パスパラメータやエンコード付きのパスでもapi配下として扱う`() {
+        val f = filter("secret")
+
+        // Tomcat がデコード・正規化した後の値が servletPath に入る想定
+        listOf(
+            "/api;x/guilds" to "/api/guilds", // パスパラメータ
+            "/%61pi/guilds" to "/api/guilds", // パーセントエンコーディング
+            "//api/guilds" to "/api/guilds", // 重複スラッシュ
+        ).forEach { (rawUri, servletPath) ->
+            val request = MockHttpServletRequest("GET", rawUri).apply { this.servletPath = servletPath }
+            val response = MockHttpServletResponse()
+            val chain = MockFilterChain()
+
+            f.doFilter(request, response, chain)
+
+            assertEquals(401, response.status, "rawUri=$rawUri")
+            assertNull(chain.request, "rawUri=$rawUri")
+        }
+    }
+
+    @Test
+    fun `pathInfo がある場合も servletPath と合わせて判定する`() {
+        val request = MockHttpServletRequest("GET", "/api/guilds").apply {
+            servletPath = "/api"
+            pathInfo = "/guilds"
+        }
+        val response = MockHttpServletResponse()
+
+        filter("secret").doFilter(request, response, MockFilterChain())
+
+        assertEquals(401, response.status)
     }
 
     @Test
