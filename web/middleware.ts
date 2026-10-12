@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { getSessionOptions, type SessionData } from "@/lib/session";
+import { getPublicOrigin } from "@/lib/origin";
 
 const protectedPaths = ["/raids"];
 const protectedApiPaths = ["/api/guilds", "/api/raids", "/api/session"];
@@ -33,7 +34,8 @@ export async function middleware(request: NextRequest) {
         { status: 401 }
       );
     }
-    const loginUrl = new URL("/api/auth/discord", request.url);
+    const origin = getPublicOrigin(request);
+    const loginUrl = new URL("/api/auth/discord", origin);
     return NextResponse.redirect(loginUrl);
   }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { fetchFromBackend } from "@/lib/backend-client";
 import type { GuildsResponse } from "@/lib/api-types";
+import { getPublicOrigin } from "@/lib/origin";
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -158,7 +159,8 @@ export async function GET(request: NextRequest) {
 
     await session.save();
 
-    return NextResponse.redirect(new URL("/raids", request.url));
+    const origin = getPublicOrigin(request);
+    return NextResponse.redirect(new URL("/raids", origin));
   } catch (error) {
     console.error("[Discord OAuth] Unexpected error:", error);
     return NextResponse.json(

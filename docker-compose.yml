@@ -32,6 +32,7 @@ services:
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:-http://localhost:3000/api/auth/discord/callback}
+      - APP_BASE_URL=${APP_BASE_URL:-}
       - SESSION_SECRET=${SESSION_SECRET}
       - NODE_ENV=production
     depends_on:
