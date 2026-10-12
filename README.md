@@ -20,6 +20,7 @@ cp env.example .env
 - `DISCORD_CLIENT_ID`: Discord OAuth用クライアントID
 - `DISCORD_CLIENT_SECRET`: Discord OAuth用クライアントシークレット
 - `SESSION_SECRET`: セッション暗号化キー（32文字以上のランダム文字列を推奨）
+- `INTERNAL_API_TOKEN`: Web(BFF) → ボット(Backend API) 間の内部API認証トークン（必須。`openssl rand -hex 32` などで生成）
 
 
 ### 2. Dockerコンテナの起動
@@ -32,6 +33,10 @@ docker-compose up -d
 - **データベース (PostgreSQL)**: localhost:${POSTGRES_HOST_PORT}（デフォルト 5432）
 
 **注意**: ボット（Spring Boot API）はポート 8080 で起動しますが、これは内部 API / デバッグ用です。通常は Web フロントエンド (http://localhost:3000) を使用してください。
+
+- `docker-compose.yml` では 8080 を `127.0.0.1` のみに公開しています（ホスト外部からは直接アクセスできません）。
+- `/api` 配下は `X-Internal-Api-Token` ヘッダーが `INTERNAL_API_TOKEN` と一致しない場合 401 を返します（`/health` は認証不要）。
+- Railway などにデプロイする場合は、ボットのサービスに公開ドメインを付与せず、Private Networking（例: `BACKEND_URL=http://<bot-service>.railway.internal:8080`）経由でのみ Web から接続してください。bot / web の両サービスに同じ `INTERNAL_API_TOKEN` を設定します。
 
 ### 3. ログの確認
 ```bash
@@ -170,6 +175,7 @@ npm run dev
 **注意**: ローカル開発時は、バックエンドAPIが http://localhost:8080 で起動している必要があります。
 `web/.env.local` ファイルを作成して、以下の環境変数を設定してください:
 - `BACKEND_URL=http://localhost:8080`（ローカル npm dev 用）
+- `INTERNAL_API_TOKEN`（Backend 側と同じ値。Backend 起動時の環境変数にも設定が必要）
 - `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `SESSION_SECRET` など
 
 詳細は `web/README.md` を参照してください。

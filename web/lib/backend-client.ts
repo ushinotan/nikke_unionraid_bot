@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
 const BACKEND_TIMEOUT_MS = 5000;
+const INTERNAL_API_TOKEN_HEADER = "X-Internal-Api-Token";
 
 export interface BackendErrorResponse {
   error: string;
@@ -30,8 +31,18 @@ export async function fetchFromBackend<T>(
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
 
   try {
+    const headers = new Headers(init?.headers);
+    // BFF -> Backend 間の内部認証。実行時に評価する(ビルド時に埋め込まない)
+    const internalToken = process.env.INTERNAL_API_TOKEN;
+    if (internalToken) {
+      headers.set(INTERNAL_API_TOKEN_HEADER, internalToken);
+    } else {
+      console.warn("[Backend] INTERNAL_API_TOKEN is not set; backend will reject requests");
+    }
+
     const response = await fetch(url, {
       ...init,
+      headers,
       signal: controller.signal,
       cache: "no-store",
     });
