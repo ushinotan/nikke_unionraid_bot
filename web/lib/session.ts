@@ -1,5 +1,6 @@
 import { getIronSession, IronSession, SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
+import { getConfiguredOrigin } from "@/lib/origin";
 
 export interface GuildMetadata {
   id: string;
@@ -22,7 +23,7 @@ export function getSessionOptions(): SessionOptions {
   }
   
   const isProduction = process.env.NODE_ENV === "production";
-  const isHttps = process.env.DISCORD_REDIRECT_URI?.startsWith("https://") ?? false;
+  const isHttps = getConfiguredOrigin()?.startsWith("https://") ?? false;
   
   return {
     password: secret,

@@ -28,8 +28,8 @@ DISCORD_CLIENT_SECRET=your_client_secret_here
 DISCORD_REDIRECT_URI=http://localhost:3000/api/auth/discord/callback
 
 # 公開 URL（オプション、Railway などのデプロイ環境で推奨）
-# OAuth リダイレクトや middleware リダイレクトに使用されます
-# 設定しない場合、DISCORD_REDIRECT_URI の origin または x-forwarded-{proto,host} から自動検出されます
+# OAuth / ログアウト / middleware のリダイレクト先と、Secure Cookie 判定に使用されます
+# 設定しない場合、x-forwarded-{proto,host} → DISCORD_REDIRECT_URI の origin の順に自動検出されます
 # APP_BASE_URL=https://your-domain.com
 
 # セッション暗号化キー（本番環境では必ず変更してください）
@@ -70,6 +70,7 @@ SESSION_SECRET=complex_password_at_least_32_characters_long
 ```
 
 **注意**: ローカル開発では `APP_BASE_URL` は不要です。リバースプロキシ (Railway など) でデプロイする際に設定してください。
+リダイレクト先の公開 origin は `APP_BASE_URL` → `x-forwarded-proto` / `x-forwarded-host` → `DISCORD_REDIRECT_URI` → `request.url` の順に解決されます。`DISCORD_REDIRECT_URI` は Discord OAuth の redirect_uri として別途必須です。
 
 **注意**: Next.js は `web/.env.local` (`package.json` と同じディレクトリ) を読み込みます。プロジェクトルートの `.env` は Docker Compose での環境変数注入用です (#41)。
 
