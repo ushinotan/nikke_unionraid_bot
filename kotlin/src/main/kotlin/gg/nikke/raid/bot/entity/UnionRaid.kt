@@ -22,5 +22,7 @@ data class UnionRaid(
     val ranking: Int? = null,
     val percentage: BigDecimal? = null,
     val finishedAt: OffsetDateTime? = null,
+    /** 通知メッセージ(報告ボタン/Embed)の Discord message ID。未送信の場合は null */
+    val notifyMessageId: Long? = null,
     val createdAt: OffsetDateTime? = null
 )

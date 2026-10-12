@@ -52,6 +52,20 @@ docker-compose logs -f web
 docker-compose exec db psql -U postgres -d nikke_unionraid
 ```
 
+## Discord Bot の必要権限
+
+Bot をサーバーへ招待する際は、スコープに `bot` と `applications.commands` を指定し、以下のチャンネル権限を付与してください。
+
+| 権限 | 用途 |
+|---|---|
+| チャンネルを見る (`View Channel`) | 通知チャンネルの参照 |
+| メッセージを送信 (`Send Messages`) | レイド通知・終了報告の送信 |
+| 埋め込みリンク (`Embed Links`) | 通知/終了報告の Embed 表示 |
+| メッセージ履歴を読む (`Read Message History`) | 通知メッセージを再取得し、報告の反映・ボタン無効化を行う（Bot 再起動後も動作させるため必須） |
+| @everyone、@here、全てのロールにメンションする (`Mention Everyone`) | 開始通知の `@everyone`（任意。無い場合はメンションなしで通知） |
+
+`メッセージ履歴を読む` が無い場合、報告後の Embed 更新やレイド終了時のボタン無効化が行われません（ログに warn が出力されます）。
+
 ## よく使うコマンド
 
 ### コンテナの停止

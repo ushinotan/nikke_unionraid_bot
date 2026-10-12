@@ -191,7 +191,7 @@ class UnionRaidEventListener(
 
         result.onSuccess { updatedCount ->
             if (updatedCount == 0L) {
-                scheduler.cleanupAfterRaidEnd(guildId, activeRaid.id)
+                scheduler.cleanupAfterRaidEnd(event.jda, guildId, activeRaid.id)
                 event.hook.sendMessage("このレイドは既に終了済みだわ。").setEphemeral(true).queue()
                 return@onSuccess
             }
@@ -204,7 +204,7 @@ class UnionRaidEventListener(
             embed.addField("ノーマル 3凸", aggregation.normalUsers.joinToString("\n").ifEmpty { "なし" }, false)
             embed.addField("ハード 3凸", aggregation.hardUsers.joinToString("\n").ifEmpty { "なし" }, false)
 
-            scheduler.cleanupAfterRaidEnd(guildId, activeRaid.id)
+            scheduler.cleanupAfterRaidEnd(event.jda, guildId, activeRaid.id)
 
             event.hook.sendMessage("人間、今回もおつかれさま。").addEmbeds(embed.build()).queue()
         }.onFailure { error ->
@@ -309,7 +309,7 @@ class UnionRaidEventListener(
                 "報告を受け付けました。"
             }
             replaceSelectMenu(event, message)
-            scheduler.updateRaidMessage(raidId)
+            scheduler.updateRaidMessage(event.jda, raidId)
         }.onFailure { error ->
             replaceSelectMenu(event, raidErrorMessage(error, "報告できません"))
         }
@@ -333,7 +333,7 @@ class UnionRaidEventListener(
             // 選択値ではなく、実際に取り消された難易度を表示する
             val labels = cancelled.sortedBy { it.ordinal }.joinToString("・") { it.label }
             replaceSelectMenu(event, "${labels}の報告を取り消しました。")
-            scheduler.updateRaidMessage(raidId)
+            scheduler.updateRaidMessage(event.jda, raidId)
         }.onFailure { error ->
             replaceSelectMenu(event, raidErrorMessage(error, "報告を取り消せません"))
         }
