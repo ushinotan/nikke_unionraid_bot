@@ -238,6 +238,11 @@ class UnionRaidEventListener(
             event.reply("レイド情報を取得できませんでした。").setEphemeral(true).queue()
             return
         }
+        // 終了済みレイドでは難易度メニューを出さない（Bot 再起動後などでボタンが残っている場合の対策）
+        raidDomainService.ensureRaidActive(raidId).onFailure { error ->
+            event.reply(raidErrorMessage(error, "報告できません")).setEphemeral(true).queue()
+            return
+        }
 
         val selectMenu = StringSelectMenu.create("$DIFFICULTY_SELECT_PREFIX$raidId")
             .setPlaceholder("難易度を選択してください")
@@ -251,6 +256,11 @@ class UnionRaidEventListener(
         val raidId = extractRaidId(event)
         if (raidId == null) {
             event.reply("レイド情報を取得できませんでした。").setEphemeral(true).queue()
+            return
+        }
+
+        raidDomainService.ensureRaidActive(raidId).onFailure { error ->
+            event.reply(raidErrorMessage(error, "報告を取り消せません")).setEphemeral(true).queue()
             return
         }
 
@@ -298,10 +308,10 @@ class UnionRaidEventListener(
             } else {
                 "報告を受け付けました。"
             }
-            event.reply(message).setEphemeral(true).queue()
+            replaceSelectMenu(event, message)
             scheduler.updateRaidMessage(raidId)
         }.onFailure { error ->
-            event.reply("エラーが発生しました: ${error.message}").setEphemeral(true).queue()
+            replaceSelectMenu(event, raidErrorMessage(error, "報告できません"))
         }
     }
 
@@ -315,23 +325,30 @@ class UnionRaidEventListener(
             difficulties = difficulties,
         )
 
-        result.onSuccess { deleted ->
-            if (deleted == 0L) {
-                event.reply("取り消せる報告がありませんでした。").setEphemeral(true).queue()
+        result.onSuccess { cancelled ->
+            if (cancelled.isEmpty()) {
+                replaceSelectMenu(event, "取り消せる報告がありませんでした。")
                 return@onSuccess
             }
-            val labels = difficulties.sortedBy { it.ordinal }.joinToString("・") { it.label }
-            event.reply("${labels}の報告を取り消しました。").setEphemeral(true).queue()
+            // 選択値ではなく、実際に取り消された難易度を表示する
+            val labels = cancelled.sortedBy { it.ordinal }.joinToString("・") { it.label }
+            replaceSelectMenu(event, "${labels}の報告を取り消しました。")
             scheduler.updateRaidMessage(raidId)
         }.onFailure { error ->
-            val message = when (error) {
-                is RaidDomainError.RaidNotFound -> "レイド情報を取得できませんでした。"
-                is RaidDomainError.RaidAlreadyFinished -> "このレイドは既に終了しているため、報告を取り消せません。"
-                is RaidDomainError.NoDifficultySelected -> "取り消す難易度を選択してください。"
-                else -> "エラーが発生しました: ${error.message}"
-            }
-            event.reply(message).setEphemeral(true).queue()
+            replaceSelectMenu(event, raidErrorMessage(error, "報告を取り消せません"))
         }
+    }
+
+    /** 使用済みの選択メニューを結果メッセージに置き換え、再操作できないようにする。 */
+    private fun replaceSelectMenu(event: StringSelectInteractionEvent, message: String) {
+        event.editMessage(message).setComponents().queue()
+    }
+
+    private fun raidErrorMessage(error: Throwable, finishedSuffix: String): String = when (error) {
+        is RaidDomainError.RaidNotFound -> "レイド情報を取得できませんでした。"
+        is RaidDomainError.RaidAlreadyFinished -> "このレイドは既に終了しているため、$finishedSuffix。"
+        is RaidDomainError.NoDifficultySelected -> "取り消す難易度を選択してください。"
+        else -> "エラーが発生しました: ${error.message}"
     }
 
     override fun onGuildJoin(event: GuildJoinEvent) {

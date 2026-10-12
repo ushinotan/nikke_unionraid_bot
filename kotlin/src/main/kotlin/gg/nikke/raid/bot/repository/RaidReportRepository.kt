@@ -74,8 +74,8 @@ class RaidReportRepository(
     }
 
     /**
-     * 指定したレイド・ユーザーの3凸報告を全て取得する。
-     * 報告が複数難易度にまたがる場合は、難易度の昇順で返す。
+     * 指定したレイド・ユーザーの3凸済み報告（`is3t = 1`）を全て取得する。
+     * 集計用の [findRaidReportsByRaidId] と同じ条件で、報告が複数難易度にまたがる場合は難易度の昇順で返す。
      *
      * @param raidId レイド ID
      * @param userId ユーザー ID
@@ -86,6 +86,7 @@ class RaidReportRepository(
             .where {
                 raidReportTable.raidId eq raidId
                 raidReportTable.userId eq userId
+                raidReportTable.is3t eq 1
             }
             .orderBy(raidReportTable.difficulty)
 
