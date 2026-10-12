@@ -2,6 +2,7 @@ package gg.nikke.raid.bot.bot
 
 import gg.nikke.raid.bot.repository.RaidReportRepository
 import gg.nikke.raid.bot.repository.UnionRaidRepository
+import gg.nikke.raid.bot.service.Difficulty
 import gg.nikke.raid.bot.service.RaidDomainService
 import gg.nikke.raid.bot.util.TimeUtils
 import jakarta.annotation.PreDestroy
@@ -32,7 +33,6 @@ class RaidNotificationScheduler(
     private val executor = Executors.newScheduledThreadPool(4)
     private val scheduledNotifyTasks = ConcurrentHashMap<Long, ScheduledRaidTask>()
     private val scheduledAutoEndTasks = ConcurrentHashMap<Int, ScheduledFuture<*>>()
-    private val notifyMessages = ConcurrentHashMap<Int, Message>()
 
     private data class ScheduledRaidTask(
         val raidId: Int,
@@ -183,8 +183,8 @@ class RaidNotificationScheduler(
             { message ->
                 // Only clear notify_time after we have confirmation the message was successfully sent.
                 // This allows retry on restart if sending fails (transient error, channel temporarily unavailable, etc.).
-                unionRaidRepository.clearNotifyTime(raidId)
-                notifyMessages[raidId] = message
+                // message ID も同時に保存し、再起動後も報告ボタン/Embed を更新できるようにする。
+                unionRaidRepository.markNotificationSent(raidId, message.idLong)
                 logger.info("通知送信に成功: raidId=$raidId messageId=${message.idLong}")
             },
             { e ->
@@ -222,7 +222,7 @@ class RaidNotificationScheduler(
         result.onSuccess { updatedCount ->
             if (updatedCount == 0L) {
                 logger.info("自動終了をスキップしました（既に終了済み）: raidId=$raidId")
-                cleanupAfterRaidEnd(guildId, raidId)
+                cleanupAfterRaidEnd(jda, guildId, raidId)
                 return@onSuccess
             }
 
@@ -247,7 +247,7 @@ class RaidNotificationScheduler(
                     )
             }
 
-            cleanupAfterRaidEnd(guildId, raidId)
+            cleanupAfterRaidEnd(jda, guildId, raidId)
             logger.info("レイドを自動終了しました: raidId=$raidId guildId=$guildId")
         }.onFailure { error ->
             logger.error("レイド自動終了中にエラーが発生しました: raidId=$raidId", error)
@@ -278,21 +278,22 @@ class RaidNotificationScheduler(
 
     /**
      * 報告ボタン無効化。
-     * 現状はインメモリの通知メッセージに依存するため、再起動後は no-op になる（将来 messageId 永続化で改善予定）。
+     * 通知メッセージは DB に保存した message ID から再取得するため、Bot 再起動後も動作する。
+     * 通知メッセージが未送信/取得できない場合は何もしない。
      */
-    fun disableReportButton(raidId: Int) {
-        val message = notifyMessages[raidId] ?: return
-        message.editMessageComponents().queue(
-            null,
-            { e -> logger.warn("報告ボタン無効化に失敗しました: raidId=$raidId", e) },
-        )
+    fun disableReportButton(jda: JDA, raidId: Int) {
+        withNotifyMessage(jda, raidId) { message ->
+            message.editMessageComponents().queue(
+                null,
+                { e -> logger.warn("報告ボタン無効化に失敗しました: raidId=$raidId", e) },
+            )
+        }
     }
 
-    fun cleanupAfterRaidEnd(guildId: Long, raidId: Int) {
-        disableReportButton(raidId)
+    fun cleanupAfterRaidEnd(jda: JDA, guildId: Long, raidId: Int) {
+        disableReportButton(jda, raidId)
         cancelNotification(guildId, raidId)
         cancelAutoEnd(raidId)
-        removeMessage(raidId)
     }
 
     fun cancelNotification(guildId: Long, raidId: Int? = null) {
@@ -305,38 +306,58 @@ class RaidNotificationScheduler(
         scheduledAutoEndTasks.remove(raidId)?.cancel(false)
     }
 
-    fun removeMessage(raidId: Int) {
-        notifyMessages.remove(raidId)
+    fun updateRaidMessage(jda: JDA, raidId: Int) {
+        withNotifyMessage(jda, raidId) { message ->
+            try {
+                val reports = raidReportRepository.findRaidReportsByRaidId(raidId)
+                val normalUsers = reports.filter { it.difficulty == Difficulty.NORMAL.value }.map { it.username }
+                val hardUsers = reports.filter { it.difficulty == Difficulty.HARD.value }.map { it.username }
+
+                val embed = message.embeds.firstOrNull() ?: return@withNotifyMessage
+                val updatedEmbed = EmbedBuilder()
+                    .setTitle(embed.title)
+                    .setDescription(embed.description)
+                    .setColor(embed.colorRaw)
+                embed.fields.forEach { field ->
+                    when (field.name) {
+                        "ノーマル 3凸" -> updatedEmbed.addField(
+                            "ノーマル 3凸", normalUsers.joinToString("\n").ifEmpty { "なし" }, false,
+                        )
+                        "ハード 3凸" -> updatedEmbed.addField(
+                            "ハード 3凸", hardUsers.joinToString("\n").ifEmpty { "なし" }, false,
+                        )
+                        else -> updatedEmbed.addField(field.name ?: "", field.value ?: "", field.isInline)
+                    }
+                }
+
+                message.editMessageEmbeds(updatedEmbed.build()).queue(
+                    null,
+                    { e -> logger.warn("レイドメッセージ更新に失敗しました: raidId=$raidId", e) },
+                )
+            } catch (e: Exception) {
+                logger.error("レイドメッセージ更新中にエラーが発生しました: raidId=$raidId", e)
+            }
+        }
     }
 
-    fun updateRaidMessage(raidId: Int) {
-        val message = notifyMessages[raidId] ?: return
-        try {
-            val reports = raidReportRepository.findRaidReportsByRaidId(raidId)
-            val normalUsers = reports.filter { it.difficulty == "normal" }.map { it.username }
-            val hardUsers = reports.filter { it.difficulty == "hard" }.map { it.username }
-
-            val embed = message.embeds.firstOrNull() ?: return
-            val updatedEmbed = EmbedBuilder()
-                .setTitle(embed.title)
-                .setDescription(embed.description)
-                .setColor(embed.colorRaw)
-            embed.fields.forEach { field ->
-                when (field.name) {
-                    "ノーマル 3凸" -> updatedEmbed.addField(
-                        "ノーマル 3凸", normalUsers.joinToString("\n").ifEmpty { "なし" }, false,
-                    )
-                    "ハード 3凸" -> updatedEmbed.addField(
-                        "ハード 3凸", hardUsers.joinToString("\n").ifEmpty { "なし" }, false,
-                    )
-                    else -> updatedEmbed.addField(field.name ?: "", field.value ?: "", field.isInline)
-                }
-            }
-
-            message.editMessageEmbeds(updatedEmbed.build()).queue()
-        } catch (e: Exception) {
-            logger.error("レイドメッセージ更新中にエラーが発生しました: raidId=$raidId", e)
+    /**
+     * DB に保存された message ID から通知メッセージを取得し、[action] を実行する。
+     * message ID 未保存(通知前・旧データ)、チャンネル未解決、メッセージ削除済みの場合は何もしない。
+     */
+    private fun withNotifyMessage(jda: JDA, raidId: Int, action: (Message) -> Unit) {
+        val raid = unionRaidRepository.findUnionRaidById(raidId) ?: return
+        val messageId = raid.notifyMessageId ?: run {
+            logger.debug("通知メッセージIDが未保存のためスキップ: raidId=$raidId")
+            return
         }
+        val channel = resolveMessageChannel(jda, raid.channelId) ?: run {
+            logger.warn("通知チャンネルが見つかりません: channelId=${raid.channelId} raidId=$raidId")
+            return
+        }
+        channel.retrieveMessageById(messageId).queue(
+            { message -> action(message) },
+            { e -> logger.warn("通知メッセージの取得に失敗しました: raidId=$raidId messageId=$messageId", e) },
+        )
     }
 
     @PreDestroy

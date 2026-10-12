@@ -22,8 +22,12 @@ CREATE TABLE IF NOT EXISTS union_raids (
     ranking INTEGER,
     percentage NUMERIC(6,2),
     finished_at TIMESTAMPTZ,
+    notify_message_id BIGINT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- 既存DB向け: init.sql はコンテナ起動のたびに実行されるため、追加カラムは冪等な ALTER でも保証する
+ALTER TABLE union_raids ADD COLUMN IF NOT EXISTS notify_message_id BIGINT;
 
 CREATE TABLE IF NOT EXISTS raid_participants (
     id SERIAL PRIMARY KEY,
