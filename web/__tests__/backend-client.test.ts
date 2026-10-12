@@ -8,7 +8,10 @@ import {
   BackendError,
 } from "../lib/backend-client";
 
+let lastFetchInit: RequestInit | undefined;
+
 global.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+  lastFetchInit = init;
   const urlStr = typeof url === "string" ? url : url.toString();
 
   if (init?.signal?.aborted) {
@@ -85,6 +88,52 @@ describe("backend-client", () => {
     it("should fetch successfully from backend", async () => {
       const result = await fetchFromBackend("/api/guilds");
       assert.deepStrictEqual(result, { guilds: [] });
+    });
+
+    describe("internal API token", () => {
+      const originalToken = process.env.INTERNAL_API_TOKEN;
+
+      afterEach(() => {
+        if (originalToken === undefined) {
+          delete process.env.INTERNAL_API_TOKEN;
+        } else {
+          process.env.INTERNAL_API_TOKEN = originalToken;
+        }
+      });
+
+      it("should send X-Internal-Api-Token header when configured", async () => {
+        process.env.INTERNAL_API_TOKEN = "test-token";
+        await fetchFromBackend("/api/guilds");
+        const headers = new Headers(lastFetchInit?.headers);
+        assert.strictEqual(headers.get("X-Internal-Api-Token"), "test-token");
+      });
+
+      it("should preserve caller headers and override a spoofed token header", async () => {
+        process.env.INTERNAL_API_TOKEN = "test-token";
+        await fetchFromBackend("/api/guilds", {
+          headers: { "X-Custom": "1", "X-Internal-Api-Token": "spoofed" },
+        });
+        const headers = new Headers(lastFetchInit?.headers);
+        assert.strictEqual(headers.get("X-Custom"), "1");
+        assert.strictEqual(headers.get("X-Internal-Api-Token"), "test-token");
+      });
+
+      it("should not send the header and should warn when not configured", async () => {
+        delete process.env.INTERNAL_API_TOKEN;
+        const warnings: unknown[][] = [];
+        const originalWarn = console.warn;
+        console.warn = (...args: unknown[]) => {
+          warnings.push(args);
+        };
+        try {
+          await fetchFromBackend("/api/guilds");
+        } finally {
+          console.warn = originalWarn;
+        }
+        const headers = new Headers(lastFetchInit?.headers);
+        assert.strictEqual(headers.has("X-Internal-Api-Token"), false);
+        assert.ok(warnings.some((w) => w[0]?.toString().includes("INTERNAL_API_TOKEN")));
+      });
     });
 
     it("should propagate 404 errors from backend", async () => {

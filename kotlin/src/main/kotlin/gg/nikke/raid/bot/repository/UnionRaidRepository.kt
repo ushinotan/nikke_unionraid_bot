@@ -136,6 +136,27 @@ class UnionRaidRepository (
     }
 
     /**
+     * 通知メッセージの送信成功を記録します。
+     * 通知時刻をNULLにし、通知メッセージのIDを保存します（再起動後もメッセージを再取得できるようにするため）。
+     *
+     * @param raidId 更新対象のレイドID
+     * @param messageId 送信した通知メッセージの Discord message ID
+     * @return 更新件数
+     */
+    fun markNotificationSent(raidId: Int, messageId: Long): Long {
+        val query = QueryDsl.update(unionRaidTable)
+            .set {
+                unionRaidTable.notifyTime eq null
+                unionRaidTable.notifyMessageId eq messageId
+            }
+            .where {
+                unionRaidTable.id eq raidId
+            }
+
+        return database.runQuery(query)
+    }
+
+    /**
      * ユニオンレイドを終了します。
      *
      * @param raidId 終了させるレイドID

@@ -310,4 +310,70 @@ open class UnionRaidRepositoryIntegrationTest(
         assertEquals("NULL created_at レイド", raids[2].raidName)
         assertNull(raids[2].createdAt)
     }
+
+    @Test
+    fun `通知メッセージID未保存のレイドはnotifyMessageIdがnullで取得される`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaidWithNotify(20_000_101L, now)
+
+        val found = unionRaidRepository.findUnionRaidById(raid.id)
+
+        assertNotNull(found)
+        assertNull(found?.notifyMessageId)
+        assertNotNull(found?.notifyTime)
+    }
+
+    @Test
+    fun `通知送信成功の記録でmessageIdが保存されnotifyTimeがnullになる`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaidWithNotify(20_000_102L, now)
+
+        val updated = unionRaidRepository.markNotificationSent(raid.id, 123_456_789_012_345_678L)
+
+        val found = unionRaidRepository.findUnionRaidById(raid.id)
+        assertEquals(1L, updated)
+        assertEquals(123_456_789_012_345_678L, found?.notifyMessageId)
+        assertNull(found?.notifyTime)
+    }
+
+    @Test
+    fun `通知送信成功の記録は他のレイドに影響しない`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaidWithNotify(20_000_103L, now)
+        val other = createRaidWithNotify(20_000_104L, now)
+
+        unionRaidRepository.markNotificationSent(raid.id, 111L)
+
+        val foundOther = unionRaidRepository.findUnionRaidById(other.id)
+        assertNull(foundOther?.notifyMessageId)
+        assertNotNull(foundOther?.notifyTime)
+    }
+
+    @Test
+    fun `レイド終了後もnotifyMessageIdは保持される`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaidWithNotify(20_000_105L, now)
+        unionRaidRepository.markNotificationSent(raid.id, 222L)
+
+        unionRaidRepository.finishUnionRaid(raid.id, now, ranking = null, percentage = null)
+
+        val found = unionRaidRepository.findUnionRaidById(raid.id)
+        assertNotNull(found?.finishedAt)
+        assertEquals(222L, found?.notifyMessageId)
+    }
+
+    private fun createRaidWithNotify(guildId: Long, now: OffsetDateTime): UnionRaid {
+        guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
+        return unionRaidRepository.insertUnionRaid(
+            UnionRaid(
+                guildId = guildId,
+                raidName = "test-notify-message-$guildId",
+                startTime = now.minusHours(1),
+                endTime = now.plusHours(1),
+                notifyTime = now.plusMinutes(30),
+                channelId = 30_000_000L + guildId,
+                createdAt = now,
+            )
+        )
+    }
 }

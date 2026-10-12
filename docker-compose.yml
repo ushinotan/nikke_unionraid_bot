@@ -13,11 +13,13 @@ services:
       - POSTGRES_HOST=${POSTGRES_HOST:-db}
       - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - DEFAULT_TIMEZONE_HOURS=${DEFAULT_TIMEZONE_HOURS:-9}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN を .env に設定してください}
     depends_on:
       db:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      # デバッグ用。ホスト外部へ公開しないようループバックのみに限定する
+      - "127.0.0.1:8080:8080"
     networks:
       - bot_network
 
@@ -29,9 +31,11 @@ services:
     restart: unless-stopped
     environment:
       - BACKEND_URL=http://bot:8080
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN を .env に設定してください}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:-http://localhost:3000/api/auth/discord/callback}
+      - APP_BASE_URL=${APP_BASE_URL:-}
       - SESSION_SECRET=${SESSION_SECRET}
       - NODE_ENV=production
     depends_on:

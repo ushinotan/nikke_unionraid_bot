@@ -27,6 +27,11 @@ DISCORD_CLIENT_ID=your_client_id_here
 DISCORD_CLIENT_SECRET=your_client_secret_here
 DISCORD_REDIRECT_URI=http://localhost:3000/api/auth/discord/callback
 
+# 公開 URL（オプション、Railway などのデプロイ環境で推奨）
+# OAuth / ログアウト / middleware のリダイレクト先と、Secure Cookie 判定に使用されます
+# 設定しない場合、x-forwarded-{proto,host} → DISCORD_REDIRECT_URI の origin の順に自動検出されます
+# APP_BASE_URL=https://your-domain.com
+
 # セッション暗号化キー（本番環境では必ず変更してください）
 SESSION_SECRET=complex_password_at_least_32_characters_long
 ```
@@ -58,11 +63,17 @@ SESSION_SECRET=complex_password_at_least_32_characters_long
 ```bash
 # web/.env.local
 BACKEND_URL=http://localhost:8080
+INTERNAL_API_TOKEN=Backend側と同じ値
 DISCORD_CLIENT_ID=your_client_id_here
 DISCORD_CLIENT_SECRET=your_client_secret_here
 DISCORD_REDIRECT_URI=http://localhost:3000/api/auth/discord/callback
 SESSION_SECRET=complex_password_at_least_32_characters_long
 ```
+
+**注意**: `INTERNAL_API_TOKEN` は Spring Boot 側の `INTERNAL_API_TOKEN` と同じ値にしてください。Backend の `/api` 配下は `X-Internal-Api-Token` ヘッダーでこの値を検証し、一致しない場合は 401 を返します（BFF が自動でヘッダーを付与します）。
+
+**注意**: ローカル開発では `APP_BASE_URL` は不要です。リバースプロキシ (Railway など) でデプロイする際に設定してください。
+リダイレクト先の公開 origin は `APP_BASE_URL` → `x-forwarded-proto` / `x-forwarded-host` → `DISCORD_REDIRECT_URI` → `request.url` の順に解決されます。`DISCORD_REDIRECT_URI` は Discord OAuth の redirect_uri として別途必須です。
 
 **注意**: Next.js は `web/.env.local` (`package.json` と同じディレクトリ) を読み込みます。プロジェクトルートの `.env` は Docker Compose での環境変数注入用です (#41)。
 
@@ -73,6 +84,7 @@ Docker Compose でコンテナ間通信を行う場合は、サービス名を�
 ```bash
 # コンテナ間通信の例
 BACKEND_URL=http://bot:8080
+INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN}  # ルートの .env から注入
 ```
 
 **注意**: コンテナ内では `localhost` はコンテナ自身を指すため、他のコンテナにアクセスできません。Spring Boot API のサービス名（`bot`）を使用してください。

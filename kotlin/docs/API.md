@@ -11,8 +11,9 @@ Next.js BFF からの内部呼び出しを想定している。
 
 - **公開禁止**: これらのエンドポイントを直接インターネットに公開しないでください
 - **想定用途**: Next.js BFF または信頼されたネットワーク内からのアクセスのみ
-- **認証未実装**: 本 PR では認証機能を実装していません
-- **本格的な認証**: Discord OAuth を含む認証機能は [issue #42](https://github.com/ushinotan/nikke_unionraid_bot/issues/42) で実装予定
+- **内部トークン認証**: `/api` 配下は `X-Internal-Api-Token` ヘッダーが環境変数 `INTERNAL_API_TOKEN` と一致する場合のみ許可します（不一致・ヘッダー無しは `401`）
+- **fail-closed**: Backend 側に `INTERNAL_API_TOKEN` が未設定の場合、`/api` 配下は全リクエストを `401` で拒否します（`/health` は対象外）
+- **ユーザー認証**: Discord OAuth によるユーザー認証・ギルド単位の認可は Next.js BFF が担当します（[issue #42](https://github.com/ushinotan/nikke_unionraid_bot/issues/42)）
 
 ### 推奨される構成
 
@@ -241,7 +242,9 @@ Discord の Snowflake ID (`guildId`, `userId`, `channelId`) は以下の理由�
 ```javascript
 // BFF から Spring API を呼び出す場合
 const guildId = "123456789012345678"; // 文字列として保持
-const response = await fetch(`http://spring-api/api/guilds/${guildId}/raids`); // そのまま埋め込む
+const response = await fetch(`http://spring-api/api/guilds/${guildId}/raids`, { // そのまま埋め込む
+  headers: { "X-Internal-Api-Token": process.env.INTERNAL_API_TOKEN! },
+});
 const data = await response.json();
 console.log(data.raids[0].guildId); // "123456789012345678" (文字列)
 ```
@@ -250,5 +253,5 @@ console.log(data.raids[0].guildId); // "123456789012345678" (文字列)
 
 - **内部向け API として設計** (Next.js BFF または信頼されたネットワークからの呼び出しのみ)
 - **公開 Web アクセスは禁止**: このエンドポイントを直接インターネットに公開しないでください
-- 認証機能の実装は別 Issue (#42) で対応予定
+- BFF → Backend 間は `X-Internal-Api-Token` ヘッダーによる共有シークレット認証（定数時間比較）
 - Discord bot の既存機能には影響を与えない読み取り専用 API
