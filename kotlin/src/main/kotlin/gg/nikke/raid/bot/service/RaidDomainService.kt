@@ -129,6 +129,59 @@ class RaidDomainService(
     }
 
     /**
+     * ユーザーが指定の難易度で既に3凸報告済みかを返す。
+     *
+     * @param raidId レイドのID
+     * @param userId ユーザーのID
+     * @param difficulty 難易度
+     * @return 報告済みなら `true`
+     */
+    fun hasReported(raidId: Int, userId: Long, difficulty: Difficulty): Boolean =
+        raidReportRepository.findRaidReport(raidId, userId, difficulty.value) != null
+
+    /**
+     * ユーザーが報告済みの難易度を返す（ノーマル、ハードの順）。
+     *
+     * @param raidId レイドのID
+     * @param userId ユーザーのID
+     * @return 報告済みの難易度のリスト。報告がなければ空
+     */
+    fun findReportedDifficulties(raidId: Int, userId: Long): List<Difficulty> {
+        val reported = raidReportRepository.findRaidReportsByRaidIdAndUserId(raidId, userId)
+            .map { it.difficulty }
+            .toSet()
+        return Difficulty.entries.filter { it.value in reported }
+    }
+
+    /**
+     * ユーザー自身の3凸報告を、指定した難易度分だけ取り消します。
+     * 指定していない難易度の報告は残ります。終了済みのレイドは取り消せません。
+     *
+     * @param raidId レイドのID
+     * @param userId 取り消すユーザーのID（本人の報告のみ対象）
+     * @param difficulties 取り消す難易度。空の場合は `NoDifficultySelected`
+     * @return 実際に削除された件数を含む `Result`。未報告の難易度だけを指定した場合は 0
+     */
+    fun cancelThreeTurnReports(
+        raidId: Int,
+        userId: Long,
+        difficulties: Set<Difficulty>,
+    ): Result<Long> {
+        if (difficulties.isEmpty()) {
+            return Result.failure(RaidDomainError.NoDifficultySelected)
+        }
+
+        val raid = unionRaidRepository.findUnionRaidById(raidId)
+            ?: return Result.failure(RaidDomainError.RaidNotFound)
+        if (raid.finishedAt != null) {
+            return Result.failure(RaidDomainError.RaidAlreadyFinished)
+        }
+
+        val deleted = raidReportRepository.deleteRaidReports(raidId, userId, difficulties.map { it.value })
+        return Result.success(deleted)
+    }
+
+    /**
      * 指定されたレイドの3凸報告をnormal/hard別のユーザー名リストに集計する。
      *
      * @param raidId レイド ID

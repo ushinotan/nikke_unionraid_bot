@@ -258,6 +258,142 @@ open class RaidDomainServiceTest(
     }
 
     // ----------------------------------------------------------------
+    // hasReported / findReportedDifficulties
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `報告済み判定_報告した難易度だけtrueになる`() {
+        val raid = createActiveRaid(70_000_101L)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_101L, "user", Difficulty.NORMAL)
+
+        assertTrue(raidDomainService.hasReported(raid.id, 90_000_101L, Difficulty.NORMAL))
+        assertFalse(raidDomainService.hasReported(raid.id, 90_000_101L, Difficulty.HARD))
+        assertFalse(raidDomainService.hasReported(raid.id, 90_000_102L, Difficulty.NORMAL))
+    }
+
+    @Test
+    fun `報告済み難易度の取得_ノーマル ハードの順で返り他ユーザーは含まれない`() {
+        val raid = createActiveRaid(70_000_102L)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_103L, "user", Difficulty.HARD)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_103L, "user", Difficulty.NORMAL)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_104L, "other", Difficulty.NORMAL)
+
+        assertEquals(
+            listOf(Difficulty.NORMAL, Difficulty.HARD),
+            raidDomainService.findReportedDifficulties(raid.id, 90_000_103L),
+        )
+        assertEquals(
+            listOf(Difficulty.NORMAL),
+            raidDomainService.findReportedDifficulties(raid.id, 90_000_104L),
+        )
+        assertTrue(raidDomainService.findReportedDifficulties(raid.id, 90_000_105L).isEmpty())
+    }
+
+    // ----------------------------------------------------------------
+    // cancelThreeTurnReports
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `報告取り消し_指定した難易度だけ消えて他の難易度は残る`() {
+        val raid = createActiveRaid(70_000_103L)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_106L, "user", Difficulty.NORMAL)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_106L, "user", Difficulty.HARD)
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 90_000_106L, setOf(Difficulty.NORMAL))
+
+        assertTrue(result.isSuccess)
+        assertEquals(1L, result.getOrThrow())
+        val aggregation = raidDomainService.aggregateRaidResults(raid.id)
+        assertEquals(0, aggregation.normalUsers.size)
+        assertEquals(listOf("user"), aggregation.hardUsers)
+    }
+
+    @Test
+    fun `報告取り消し_両方の難易度をまとめて取り消せる`() {
+        val raid = createActiveRaid(70_000_104L)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_107L, "user", Difficulty.NORMAL)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_107L, "user", Difficulty.HARD)
+
+        val result = raidDomainService.cancelThreeTurnReports(
+            raid.id, 90_000_107L, setOf(Difficulty.NORMAL, Difficulty.HARD),
+        )
+
+        assertEquals(2L, result.getOrThrow())
+        assertTrue(raidDomainService.findReportedDifficulties(raid.id, 90_000_107L).isEmpty())
+    }
+
+    @Test
+    fun `報告取り消し_他ユーザーの報告は消えない`() {
+        val raid = createActiveRaid(70_000_105L)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_108L, "me", Difficulty.NORMAL)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_109L, "other", Difficulty.NORMAL)
+
+        raidDomainService.cancelThreeTurnReports(raid.id, 90_000_108L, setOf(Difficulty.NORMAL))
+
+        assertEquals(listOf("other"), raidDomainService.aggregateRaidResults(raid.id).normalUsers)
+    }
+
+    @Test
+    fun `報告取り消し_未報告の難易度だけを指定すると0件で成功する`() {
+        val raid = createActiveRaid(70_000_106L)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_110L, "user", Difficulty.NORMAL)
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 90_000_110L, setOf(Difficulty.HARD))
+
+        assertTrue(result.isSuccess)
+        assertEquals(0L, result.getOrThrow())
+        assertTrue(raidDomainService.hasReported(raid.id, 90_000_110L, Difficulty.NORMAL))
+    }
+
+    @Test
+    fun `報告取り消し_難易度が空だとNoDifficultySelectedエラーになる`() {
+        val raid = createActiveRaid(70_000_107L)
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 90_000_111L, emptySet())
+
+        assertTrue(result.isFailure)
+        assertInstanceOf(RaidDomainError.NoDifficultySelected::class.java, result.exceptionOrNull())
+    }
+
+    @Test
+    fun `報告取り消し_存在しないレイドはRaidNotFoundエラーになる`() {
+        val result = raidDomainService.cancelThreeTurnReports(
+            raidId = Int.MAX_VALUE,
+            userId = 90_000_112L,
+            difficulties = setOf(Difficulty.NORMAL),
+        )
+
+        assertTrue(result.isFailure)
+        assertInstanceOf(RaidDomainError.RaidNotFound::class.java, result.exceptionOrNull())
+    }
+
+    @Test
+    fun `報告取り消し_終了済みレイドはRaidAlreadyFinishedエラーになり報告は残る`() {
+        val raid = createActiveRaid(70_000_108L)
+        raidDomainService.reportThreeTurn(raid.id, 90_000_113L, "user", Difficulty.NORMAL)
+        raidDomainService.finishRaid(raidId = raid.id)
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 90_000_113L, setOf(Difficulty.NORMAL))
+
+        assertTrue(result.isFailure)
+        assertInstanceOf(RaidDomainError.RaidAlreadyFinished::class.java, result.exceptionOrNull())
+        assertTrue(raidDomainService.hasReported(raid.id, 90_000_113L, Difficulty.NORMAL))
+    }
+
+    private fun createActiveRaid(guildId: Long): gg.nikke.raid.bot.entity.UnionRaid {
+        val now = OffsetDateTime.now()
+        guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
+        return raidDomainService.createRaid(
+            guildId = guildId,
+            raidName = "test-raid",
+            startTime = now,
+            endTime = now.plusHours(2),
+            channelId = 80_000_000L + guildId % 1000,
+            now = now,
+        ).getOrThrow()
+    }
+
+    // ----------------------------------------------------------------
     // aggregateRaidResults
     // ----------------------------------------------------------------
 

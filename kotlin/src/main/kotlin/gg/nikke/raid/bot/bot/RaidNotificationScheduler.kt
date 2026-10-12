@@ -170,7 +170,12 @@ class RaidNotificationScheduler(
         val content = if (canMentionEveryone) "@everyone" else ""
         val action = channel.sendMessage(content)
             .addEmbeds(embed)
-            .addComponents(ActionRow.of(Button.primary("raid_report", "報告")))
+            .addComponents(
+                ActionRow.of(
+                    Button.primary(UnionRaidEventListener.REPORT_BUTTON_ID, "報告"),
+                    Button.secondary(UnionRaidEventListener.REPORT_CANCEL_BUTTON_ID, "取り消し"),
+                ),
+            )
         if (canMentionEveryone) {
             action.setAllowedMentions(setOf(MentionType.EVERYONE))
         }
