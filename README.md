@@ -241,17 +241,25 @@ npm run lint
 2. **master（本番）へ反映**: 次のどちらかで行います。
    - **リリース**: develop に未リリースの変更があっても一緒に出してよい場合は、通常どおり develop → master のリリース PR（`Release YYYY.MM.DD`）を作成してマージする
    - **ホットフィックス**: develop の未リリース変更を本番に出したくない場合は、master から作業ブランチを作り、develop に入った修正コミットだけを取り込んで master 向けの PR を作成する
-     ```bash
-     git fetch origin
-     git switch -c hotfix/node-<version> origin/master
-     # Squash merge した場合: develop 上の squash されたコミット 1 つを指定する
-     git cherry-pick <squash コミット>
-     # Merge commit でマージした場合: マージコミットを -m 1 付きで指定する
-     #（グループ化された PR などでコミットが複数あっても、PR の変更をまとめて取り込める）
-     git cherry-pick -m 1 <マージコミット>
-     git push -u origin hotfix/node-<version>
-     ```
-     どちらの方式でマージしたかは、develop の履歴（`git log --oneline --first-parent origin/develop`）で確認できます（`Merge pull request #...` ならマージコミット）。
+     1. master から作業ブランチを作る
+        ```bash
+        git fetch origin
+        git switch -c hotfix/node-<version> origin/master
+        ```
+     2. develop に入った修正を取り込む。マージ方式に合わせて**どちらか一方だけ**を実行する。どちらでマージしたかは `git log --oneline --first-parent origin/develop` で確認できる（`Merge pull request #...` ならマージコミット）
+        - Squash merge でマージした場合（develop 上の squash されたコミット 1 つを指定）:
+          ```bash
+          git cherry-pick <squash コミット>
+          ```
+        - Merge commit でマージした場合（マージコミットを指定。PR のコミットが複数あってもまとめて取り込める）:
+          ```bash
+          git cherry-pick -m 1 <マージコミット>
+          ```
+     3. push して master 向けの PR を作成する
+        ```bash
+        git push -u origin hotfix/node-<version>
+        ```
+
      修正はすでに develop に入っているため、develop へのバックマージは不要です。
    - master へのマージで Railway の `web` が自動で再ビルド・再デプロイされます。
 3. **本番で反映を確認**
