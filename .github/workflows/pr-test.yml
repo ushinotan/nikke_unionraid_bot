@@ -67,10 +67,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 22
+      # web/Dockerfile のベースイメージと同じ Node.js バージョンでテストする
+      - name: Resolve Node.js version from Dockerfile
+        id: node-version
+        run: |
+          version=$(../scripts/web-node-version.sh)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ steps.node-version.outputs.version }}
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -88,3 +95,70 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+  web-docker:
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 本番 (Railway) と同じ web/Dockerfile でイメージをビルドし、起動できることを確認する
+      # GitHub Actions のキャッシュでレイヤーを再利用し、web 配下が変わらない PR のビルドを短縮する
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          pull: true
+          load: true
+          tags: web-ci
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      - name: Check Node.js version in image
+        run: |
+          expected="v$(scripts/web-node-version.sh)"
+          actual=$(docker run --rm web-ci node -v)
+          echo "expected=$expected actual=$actual"
+          test "$actual" = "$expected"
+
+      - name: Smoke test web container
+        run: |
+          docker run -d --name web-ci -p 3000:3000 \
+            -e SESSION_SECRET=ci-dummy-session-secret-0123456789abcdef \
+            -e INTERNAL_API_TOKEN=ci-dummy-token \
+            -e BACKEND_URL=http://127.0.0.1:8080 \
+            web-ci
+
+          up=false
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null http://127.0.0.1:3000/; then
+              up=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$up" != true ]; then
+            echo "::error::web コンテナが起動しませんでした"
+            docker logs web-ci
+            exit 1
+          fi
+
+          # 保護されたパスで proxy と iron-session（Cookie の復号を含む）が動くことを確認する
+          # 未ログイン（Cookie なし / 不正な Cookie）は /api/auth/discord へ 307 でリダイレクトされる
+          check() {
+            name="$1"; expected="$2"; shift 2
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$@")
+            echo "$name: $status (expected $expected)"
+            if [ "$status" != "$expected" ]; then
+              docker logs web-ci
+              exit 1
+            fi
+          }
+          check "GET /raids (no cookie)" 307 http://127.0.0.1:3000/raids
+          check "GET /raids (invalid cookie)" 307 -H 'Cookie: nikke_raid_session=invalid' http://127.0.0.1:3000/raids
+          check "GET /api/raids (no cookie)" 401 http://127.0.0.1:3000/api/raids
