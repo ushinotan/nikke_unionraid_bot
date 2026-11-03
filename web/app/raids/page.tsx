@@ -6,7 +6,6 @@ import type { GuildDto, RaidSummaryDto } from "@/lib/api-types";
 import {
   Card,
   LogoutButton,
-  Meter,
   RankBadge,
   SiteHeader,
   Spinner,
@@ -275,7 +274,7 @@ export default function RaidsPage() {
                     <th className="pl-5 pr-3 py-2.5 font-medium">レイド名</th>
                     <th className="px-3 py-2.5 font-medium">期間</th>
                     <th className="px-3 py-2.5 font-medium text-center">順位</th>
-                    <th className="px-3 py-2.5 font-medium w-44">パーセンテージ</th>
+                    <th className="px-3 py-2.5 font-medium text-right">パーセンテージ</th>
                     <th className="px-3 py-2.5 font-medium text-center">ステータス</th>
                   </tr>
                 </thead>
@@ -310,14 +309,11 @@ export default function RaidsPage() {
                         <td className="px-3 py-3 text-center">
                           <RankBadge rank={raid.ranking} />
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-3 py-3 text-right">
                           {raid.percentage !== null ? (
-                            <div className="flex items-center gap-2">
-                              <span className="w-14 text-right font-bold text-ink tabular">
-                                {raid.percentage.toFixed(2)}%
-                              </span>
-                              <Meter value={raid.percentage} />
-                            </div>
+                            <span className="font-bold text-ink tabular">
+                              {raid.percentage.toFixed(2)}%
+                            </span>
                           ) : (
                             <span className="text-ink-mute">-</span>
                           )}
