@@ -1,5 +1,9 @@
+# ---- Base stage ----
+# Node.js のバージョンはここだけで管理する（Dependabot が更新し、CI もこの値を参照する）
+FROM node:22.23.4-alpine AS base
+
 # ---- Dependencies stage ----
-FROM node:22-alpine AS deps
+FROM base AS deps
 
 WORKDIR /app
 
@@ -9,7 +13,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # ---- Builder stage ----
-FROM node:22-alpine AS builder
+FROM base AS builder
 
 WORKDIR /app
 
@@ -19,7 +23,7 @@ COPY . .
 RUN npm run build
 
 # ---- Runtime stage ----
-FROM node:22-alpine AS runner
+FROM base AS runner
 
 WORKDIR /app
 

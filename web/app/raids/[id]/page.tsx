@@ -1,16 +1,67 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { RaidDetailResponse } from "@/lib/api-types";
+import type { RaidDetailResponse, RaidReportDto } from "@/lib/api-types";
+import {
+  Card,
+  DifficultyBadge,
+  LogoutButton,
+  SiteHeader,
+  Spinner,
+  StateScreen,
+  StatusBadge,
+  formatDateTime,
+  primaryButtonClass,
+} from "../../_components/ui";
+import { compareReportsByTime, isRaidActive } from "../../_components/raid";
+import { useNow } from "../../_components/use-now";
 
 type Params = Promise<{ id: string }>;
+
+interface MemberProgress {
+  userId: string;
+  username: string;
+  normal: RaidReportDto | null;
+  hard: RaidReportDto | null;
+}
+
+// 参加者データは Bot が記録していないため、難易度レポートをユーザーごとにまとめて参加者とみなす。
+// reports は報告日時の昇順で渡すこと。同じ難易度の報告が複数ある場合は、
+// 日時は最初の報告を採用し、3T はいずれかの報告で達成していれば達成とみなす
+function aggregateMembers(reports: RaidReportDto[]): MemberProgress[] {
+  const byUser = new Map<string, MemberProgress>();
+  for (const report of reports) {
+    const member = byUser.get(report.userId) ?? {
+      userId: report.userId,
+      username: report.username,
+      normal: null,
+      hard: null,
+    };
+    // 想定外の値は DifficultyBadge と同じく NORMAL として扱う
+    const difficulty = report.difficulty === "hard" ? "hard" : "normal";
+    const first = member[difficulty];
+    if (!first) {
+      member[difficulty] = report;
+    } else if (report.threeT === 1 && first.threeT !== 1) {
+      member[difficulty] = { ...first, threeT: 1 };
+    }
+    byUser.set(report.userId, member);
+  }
+  // HARD 到達者を先に、その中では報告が早い順
+  const leading = (m: MemberProgress) => (m.hard ?? m.normal) as RaidReportDto;
+  return [...byUser.values()].sort((a, b) => {
+    if (!!a.hard !== !!b.hard) return a.hard ? -1 : 1;
+    return compareReportsByTime(leading(a), leading(b));
+  });
+}
 
 export default function RaidDetailPage({ params }: { params: Params }) {
   const [raidId, setRaidId] = useState<string>("");
   const [data, setData] = useState<RaidDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const now = useNow();
 
   useEffect(() => {
     params.then((p) => {
@@ -65,246 +116,214 @@ export default function RaidDetailPage({ params }: { params: Params }) {
     };
   }, [raidId]);
 
+  const header = <SiteHeader right={<LogoutButton />} />;
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-slate-400 text-lg">読み込み中...</div>
+      <div className="min-h-screen flex flex-col">
+        {header}
+        <Spinner />
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="bg-red-950/50 border border-red-900 rounded-lg p-6 max-w-md">
-          <h2 className="text-red-400 text-xl font-bold mb-2">エラー</h2>
-          <p className="text-red-300">
-            {error || "レイドが見つかりませんでした"}
-          </p>
-          <Link
-            href="/raids"
-            className="mt-4 inline-block px-4 py-2 bg-red-900 hover:bg-red-800 text-white rounded transition-colors"
-          >
-            一覧に戻る
-          </Link>
-        </div>
+      <div className="min-h-screen flex flex-col">
+        {header}
+        <StateScreen
+          tone="error"
+          title="エラー"
+          action={
+            <Link href="/raids" className={primaryButtonClass}>
+              一覧に戻る
+            </Link>
+          }
+        >
+          {error || "レイドが見つかりませんでした"}
+        </StateScreen>
       </div>
     );
   }
 
+  const { raid } = data;
+  const active = isRaidActive(raid, now);
+  const reports = [...(data.reports ?? [])].sort(compareReportsByTime);
+  const members = aggregateMembers(reports);
+  const hardCount = reports.filter((r) => r.difficulty === "hard").length;
+  const threeTCount = reports.filter((r) => r.threeT === 1).length;
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
-      <div className="bg-[#1a1a1a] border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+    <div className="min-h-screen flex flex-col">
+      {header}
+
+      <div className="brand-hero border-b border-line">
+        <div className="max-w-6xl mx-auto px-4 py-6">
           <Link
             href="/raids"
-            className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block transition-colors"
+            className="inline-flex items-center gap-1 text-xs font-medium text-ink-sub hover:text-primary transition-colors mb-3"
           >
-            ← レイド一覧に戻る
+            ← レイド一覧
           </Link>
-          <h1 className="text-2xl font-bold text-white">
-            {data.raid.raidName}
-          </h1>
-        </div>
-      </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-ink">{raid.raidName}</h1>
+            <StatusBadge active={active} />
+          </div>
+          <p className="mt-1 text-sm text-ink-sub">
+            {raid.guildName || raid.guildId}
+            <span className="mx-2 text-ink-mute">|</span>
+            <span className="tabular">
+              {formatDateTime(raid.startTime)} 〜 {formatDateTime(raid.endTime)}
+            </span>
+          </p>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        <div className="bg-[#1a1a1a] border border-slate-800 rounded-lg p-6">
-          <h2 className="text-slate-200 text-lg font-bold mb-4">レイド情報</h2>
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <dt className="text-slate-400">レイドID:</dt>
-              <dd className="text-slate-200 font-mono">{data.raid.id}</dd>
-            </div>
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <dt className="text-slate-400">ギルド:</dt>
-              <dd className="text-slate-200 font-mono">
-                {data.raid.guildName || data.raid.guildId}
-              </dd>
-            </div>
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <dt className="text-slate-400">順位:</dt>
-              <dd className="text-slate-200">
-                {data.raid.ranking !== null ? (
-                  <span className="text-yellow-400 font-semibold">
-                    {data.raid.ranking}位
-                  </span>
-                ) : (
-                  <span className="text-slate-600">-</span>
-                )}
-              </dd>
-            </div>
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <dt className="text-slate-400">パーセンテージ:</dt>
-              <dd className="text-slate-200">
-                {data.raid.percentage !== null ? (
-                  <span className="font-mono">{data.raid.percentage.toFixed(2)}%</span>
-                ) : (
-                  <span className="text-slate-600">-</span>
-                )}
-              </dd>
-            </div>
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <dt className="text-slate-400">開始日時:</dt>
-              <dd className="text-slate-200">
-                {new Date(data.raid.startTime).toLocaleDateString("ja-JP", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </dd>
-            </div>
-            <div className="flex justify-between border-b border-slate-800 pb-2">
-              <dt className="text-slate-400">終了日時:</dt>
-              <dd className="text-slate-200">
-                {new Date(data.raid.endTime).toLocaleDateString("ja-JP", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </dd>
-            </div>
+          <dl className="mt-5 grid grid-cols-3 gap-px bg-line rounded-md overflow-hidden border border-line">
+            <Stat label="順位">
+              {raid.ranking !== null ? (
+                <span className={raid.ranking <= 3 ? "text-gold-ink" : "text-primary"}>
+                  {raid.ranking}
+                  <span className="text-sm ml-0.5">位</span>
+                </span>
+              ) : (
+                <span className="text-ink-mute">-</span>
+              )}
+            </Stat>
+            <Stat label="パーセンテージ">
+              {raid.percentage !== null ? (
+                <>
+                  {raid.percentage.toFixed(2)}
+                  <span className="text-sm ml-0.5">%</span>
+                </>
+              ) : (
+                <span className="text-ink-mute">-</span>
+              )}
+            </Stat>
+            <Stat label="参加者">
+              {members.length}
+              <span className="text-sm ml-0.5">人</span>
+            </Stat>
           </dl>
         </div>
-
-        <div className="bg-[#1a1a1a] border border-slate-800 rounded-lg p-6">
-          <h2 className="text-slate-200 text-lg font-bold mb-4">
-            参加者一覧 ({data.participants.length}人)
-          </h2>
-          {data.participants.length === 0 ? (
-            <p className="text-slate-500 text-center py-8">
-              参加者がいません
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-[#0f0f0f] border-b border-slate-800">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      ユーザー名
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      スコア
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      参加日時
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {[...data.participants]
-                    .sort((a, b) => b.score - a.score)
-                    .map((participant) => (
-                      <tr key={participant.id} className="hover:bg-[#0f0f0f] transition-colors">
-                        <td className="px-4 py-3 text-slate-200">
-                          {participant.username}
-                        </td>
-                        <td className="px-4 py-3 text-slate-200 font-mono font-semibold">
-                          {participant.score.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 text-slate-400 text-sm">
-                          {participant.joinedAt ? (
-                            new Date(participant.joinedAt).toLocaleDateString("ja-JP", {
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          ) : (
-                            <span className="text-slate-600">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-[#1a1a1a] border border-slate-800 rounded-lg p-6">
-          <h2 className="text-slate-200 text-lg font-bold mb-4">
-            難易度レポート ({data.reports.length}件)
-          </h2>
-          {data.reports.length === 0 ? (
-            <p className="text-slate-500 text-center py-8">
-              レポートがありません
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-[#0f0f0f] border-b border-slate-800">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      ユーザー名
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      難易度
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      3T
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      報告日時
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {[...data.reports]
-                    .sort((a, b) => {
-                      if (!a.reportedAt) return 1;
-                      if (!b.reportedAt) return -1;
-                      return new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime();
-                    })
-                    .map((report) => (
-                      <tr key={report.id} className="hover:bg-[#0f0f0f] transition-colors">
-                        <td className="px-4 py-3 text-slate-200">
-                          {report.username}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
-                              report.difficulty === "hard"
-                                ? "bg-red-900/30 text-red-400 border border-red-800"
-                                : "bg-blue-900/30 text-blue-400 border border-blue-800"
-                            }`}
-                          >
-                            {report.difficulty === "hard" ? "HARD" : "NORMAL"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {report.threeT === 1 ? (
-                            <span className="text-green-400 font-semibold">✓</span>
-                          ) : (
-                            <span className="text-slate-600">-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-slate-400 text-sm">
-                          {report.reportedAt ? (
-                            new Date(report.reportedAt).toLocaleDateString("ja-JP", {
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          ) : (
-                            <span className="text-slate-600">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
+
+      <main className="max-w-6xl w-full mx-auto px-4 py-6 grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start">
+        <Card title="参加者" aside={`${members.length}人`}>
+          {members.length === 0 ? (
+            <p className="py-12 text-center text-sm text-ink-mute">参加者がいません</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-sub text-ink-mute">
+                  <tr className="text-left text-xs">
+                    <th className="pl-4 pr-2 py-2.5 font-medium w-10 text-center">#</th>
+                    <th className="px-3 py-2.5 font-medium">ユーザー</th>
+                    <th className="px-3 py-2.5 font-medium text-center">NORMAL</th>
+                    <th className="px-3 py-2.5 font-medium text-center">HARD</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line-soft">
+                  {members.map((member, index) => (
+                    <tr key={member.userId} className="hover:bg-surface-sub transition-colors">
+                      <td className="pl-4 pr-2 py-2.5 text-center text-xs font-bold text-ink-mute tabular">
+                        {index + 1}
+                      </td>
+                      <td className="px-3 py-2.5 font-medium text-ink">{member.username}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        <ProgressCell report={member.normal} difficulty="normal" />
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <ProgressCell report={member.hard} difficulty="hard" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        <Card
+          title="難易度レポート"
+          aside={
+            reports.length > 0 ? (
+              <span className="tabular">
+                <span className="text-hard-ink font-bold">HARD {hardCount}</span>
+                <span className="mx-1.5">/</span>
+                <span className="text-normal-ink font-bold">NORMAL {reports.length - hardCount}</span>
+                <span className="mx-1.5">/</span>
+                <span className="text-success-ink font-bold">3T {threeTCount}</span>
+              </span>
+            ) : undefined
+          }
+        >
+          {reports.length === 0 ? (
+            <p className="py-12 text-center text-sm text-ink-mute">レポートがありません</p>
+          ) : (
+            <ul className="divide-y divide-line-soft">
+              {reports.map((report) => (
+                <li
+                  key={report.id}
+                  className={`relative flex items-center gap-3 pl-5 pr-4 py-2.5 ${
+                    report.difficulty === "hard" ? "bg-hard-soft/60" : "bg-normal-soft/50"
+                  }`}
+                >
+                  <span
+                    className={`absolute left-0 top-0 bottom-0 w-1 ${
+                      report.difficulty === "hard" ? "bg-hard" : "bg-normal"
+                    }`}
+                    aria-hidden
+                  />
+                  <DifficultyBadge difficulty={report.difficulty} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-ink truncate">{report.username}</div>
+                    <div className="text-xs text-ink-mute tabular">
+                      {report.reportedAt ? formatDateTime(report.reportedAt) : "-"}
+                    </div>
+                  </div>
+                  {report.threeT === 1 ? (
+                    <span className="inline-flex items-center px-2 h-6 rounded text-xs font-bold bg-success-soft text-success-ink">
+                      3T
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </main>
     </div>
+  );
+}
+
+function Stat({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="bg-surface px-4 py-3">
+      <dt className="text-xs text-ink-mute">{label}</dt>
+      <dd className="mt-0.5 text-2xl font-bold text-ink tabular">{children}</dd>
+    </div>
+  );
+}
+
+function ProgressCell({
+  report,
+  difficulty,
+}: {
+  report: RaidReportDto | null;
+  difficulty: "normal" | "hard";
+}) {
+  if (!report) {
+    return <span className="text-ink-mute">-</span>;
+  }
+  const tone =
+    difficulty === "hard" ? "bg-hard-soft text-hard-ink" : "bg-normal-soft text-normal-ink";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 h-6 rounded text-xs font-bold ${tone}`}
+      title={report.reportedAt ? formatDateTime(report.reportedAt) : undefined}
+    >
+      <span aria-hidden>✓</span>
+      <span className="sr-only">報告済み、</span>
+      {report.threeT === 1 ? <span>3T</span> : null}
+    </span>
   );
 }

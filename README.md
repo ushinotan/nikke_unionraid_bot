@@ -1,5 +1,7 @@
 # Docker環境でのセットアップ
 
+> 本番環境へのデプロイ手順（Railway / VPS）、環境変数の詳細、マイグレーション、運用については [DEPLOYMENT.md](DEPLOYMENT.md) を参照してください。
+
 ## 前提条件
 - Docker
 - Docker Compose V2
@@ -36,7 +38,7 @@ docker-compose up -d
 
 - `docker-compose.yml` では 8080 を `127.0.0.1` のみに公開しています（ホスト外部からは直接アクセスできません）。
 - `/api` 配下は `X-Internal-Api-Token` ヘッダーが `INTERNAL_API_TOKEN` と一致しない場合 401 を返します（`/health` は認証不要）。
-- Railway などにデプロイする場合は、ボットのサービスに公開ドメインを付与せず、Private Networking（例: `BACKEND_URL=http://<bot-service>.railway.internal:8080`）経由でのみ Web から接続してください。bot / web の両サービスに同じ `INTERNAL_API_TOKEN` を設定します。
+- Railway などへデプロイする場合の構成（ボットを公開せず Private Networking 経由で接続する等）は [DEPLOYMENT.md](DEPLOYMENT.md) を参照してください。
 
 ### 3. ログの確認
 ```bash
@@ -206,6 +208,65 @@ npm run start
 # Lint
 npm run lint
 ```
+
+### 依存関係の脆弱性対策
+
+> **対象範囲**: 現在の自動検知の対象は **web（`web/`）と GitHub Actions のみ**です。bot 側（ルートの `Dockerfile` の `eclipse-temurin:21-*`、`kotlin/` の Gradle 依存）と `docker-compose.yml` の `postgres:16-alpine` は対象外のため、手動で更新を確認してください。
+
+- **CI**: `.github/workflows/pr-test.yml` で PR ごとに以下を実行します（develop 向け・master 向けの両方）。
+  - `web` ジョブ: `npm ci` → `lint` → `test` → `build` → `npm audit --omit=dev --audit-level=high`（本番依存に high 以上の脆弱性があると失敗）。Node.js は `web/Dockerfile` の `base` ステージと同じバージョンを使います。
+  - `web-docker` ジョブ: 本番と同じ `web/Dockerfile` でイメージをビルドし、イメージ内の Node.js バージョンとコンテナの起動を確認します。
+- **Dependabot**: `.github/dependabot.yml` で以下の更新 PR を毎週（月曜）**develop 向けに**作成します。
+  - `npm`（`/web`）: `next` / `eslint-config-next`、React 系、開発依存のマイナー/パッチ更新をそれぞれ 1 つの PR にグループ化
+  - `docker`（`/web`）: `web/Dockerfile` のベースイメージ `node:22.x.y-alpine`
+  - `github-actions`: マイナー/パッチ更新を 1 つの PR にグループ化（メジャー更新は個別 PR）
+- `node` イメージと `@types/node` のメジャー更新は自動 PR の対象外です。実行環境の LTS を切り替える際に手動で更新してください。それ以外の npm パッケージ（`next`、`react` など）はメジャー更新も PR が届きます。
+- リポジトリの Settings → Code security で **Dependabot alerts / security updates** を有効にしておくと、週次スケジュールを待たずに脆弱性修正の PR が届きます。
+
+#### ブランチと環境の対応
+
+| ブランチ | 環境 | Railway サービス |
+|---|---|---|
+| `develop` | 開発環境 | `dev_web` / `dev_bot` |
+| `master` | 本番環境 | `web` / `bot` |
+
+各サービスは対象ブランチへの push で自動デプロイされます。Dependabot の PR は develop 向けのため、**マージしただけでは本番（master）には反映されません**。
+
+#### Node.js / 依存関係のセキュリティ更新を本番へ反映する手順
+
+`web/Dockerfile` のベースイメージはパッチバージョンまで固定しているため、Node.js 本体の修正はイメージを更新・再ビルドしない限り取り込まれません。[Node.js のセキュリティリリース](https://nodejs.org/en/blog/vulnerability) や依存パッケージの high 以上の脆弱性が出たら、以下を行ってください。
+
+1. **develop へ反映**
+   - Dependabot の更新 PR を確認する。届いていなければ、`web/Dockerfile` の `base` ステージ（`FROM node:22.x.y-alpine AS base`、1 箇所のみ）を手動で更新して develop 向けの PR を作成する
+   - CI の `web` / `web-docker` ジョブが成功したことを確認してマージする
+   - `dev_web` が自動で再デプロイされるので、開発環境で動作を確認する
+2. **master（本番）へ反映**: 次のどちらかで行います。
+   - **リリース**: develop に未リリースの変更があっても一緒に出してよい場合は、通常どおり develop → master のリリース PR（`Release YYYY.MM.DD`）を作成してマージする
+   - **ホットフィックス**: develop の未リリース変更を本番に出したくない場合は、master から作業ブランチを作り、develop に入った修正コミットだけを取り込んで master 向けの PR を作成する
+     1. master から作業ブランチを作る
+        ```bash
+        git fetch origin
+        git switch -c hotfix/node-<version> origin/master
+        ```
+     2. develop に入った修正を取り込む。マージ方式に合わせて**どちらか一方だけ**を実行する。どちらでマージしたかは `git log --oneline --first-parent origin/develop` で確認できる（`Merge pull request #...` ならマージコミット）
+        - Squash merge でマージした場合（develop 上の squash されたコミット 1 つを指定）:
+          ```bash
+          git cherry-pick <squash コミット>
+          ```
+        - Merge commit でマージした場合（マージコミットを指定。PR のコミットが複数あってもまとめて取り込める）:
+          ```bash
+          git cherry-pick -m 1 <マージコミット>
+          ```
+     3. push して master 向けの PR を作成する
+        ```bash
+        git push -u origin hotfix/node-<version>
+        ```
+
+     修正はすでに develop に入っているため、develop へのバックマージは不要です。
+   - master へのマージで Railway の `web` が自動で再ビルド・再デプロイされます。
+3. **本番で反映を確認**
+   - Railway: `web` サービスの最新デプロイのビルドログで、ベースイメージ（`node:22.x.y-alpine`）が更新後のバージョンになっていることを確認する
+   - Docker Compose で運用している場合: `docker-compose build --pull web && docker-compose up -d web` で再ビルドし、`docker-compose exec web node -v` でバージョンを確認する
 
 ## Dev Container での開発（Kotlin）
 

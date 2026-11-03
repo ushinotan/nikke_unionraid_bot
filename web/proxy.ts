@@ -6,7 +6,7 @@ import { getPublicOrigin } from "@/lib/origin";
 const protectedPaths = ["/raids"];
 const protectedApiPaths = ["/api/guilds", "/api/raids", "/api/session"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   const isProtectedPath = protectedPaths.some((protectedPath) =>
