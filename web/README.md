@@ -28,7 +28,7 @@ DISCORD_CLIENT_SECRET=your_client_secret_here
 DISCORD_REDIRECT_URI=http://localhost:3000/api/auth/discord/callback
 
 # 公開 URL（オプション、Railway などのデプロイ環境で推奨）
-# OAuth / ログアウト / middleware のリダイレクト先と、Secure Cookie 判定に使用されます
+# OAuth / ログアウト / proxy（認証ガード） のリダイレクト先と、Secure Cookie 判定に使用されます
 # 設定しない場合、x-forwarded-{proto,host} → DISCORD_REDIRECT_URI の origin の順に自動検出されます
 # APP_BASE_URL=https://your-domain.com
 
