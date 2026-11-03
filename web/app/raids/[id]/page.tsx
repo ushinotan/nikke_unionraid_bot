@@ -141,7 +141,6 @@ export default function RaidDetailPage({ params }: { params: Params }) {
   const { raid } = data;
   const active = !raid.finishedAt && new Date() <= new Date(raid.endTime);
   const members = aggregateMembers(data.reports);
-  const hardMembers = members.filter((m) => m.hard).length;
   const reports = [...data.reports].sort((a, b) => {
     if (!a.reportedAt) return 1;
     if (!b.reportedAt) return -1;
@@ -174,7 +173,7 @@ export default function RaidDetailPage({ params }: { params: Params }) {
             </span>
           </p>
 
-          <dl className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px bg-line rounded-md overflow-hidden border border-line">
+          <dl className="mt-5 grid grid-cols-3 gap-px bg-line rounded-md overflow-hidden border border-line">
             <Stat label="順位">
               {raid.ranking !== null ? (
                 <span className={raid.ranking <= 3 ? "text-gold" : "text-primary"}>
@@ -197,10 +196,6 @@ export default function RaidDetailPage({ params }: { params: Params }) {
             </Stat>
             <Stat label="参加者">
               {members.length}
-              <span className="text-sm ml-0.5">人</span>
-            </Stat>
-            <Stat label="HARD 到達">
-              {hardMembers}
               <span className="text-sm ml-0.5">人</span>
             </Stat>
           </dl>
