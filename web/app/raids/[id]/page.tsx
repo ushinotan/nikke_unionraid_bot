@@ -115,7 +115,7 @@ export default function RaidDetailPage({ params }: { params: Params }) {
   const reports = [...data.reports].sort((a, b) => {
     if (!a.reportedAt) return 1;
     if (!b.reportedAt) return -1;
-    return new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime();
+    return new Date(a.reportedAt).getTime() - new Date(b.reportedAt).getTime();
   });
   const hardCount = reports.filter((r) => r.difficulty === "hard").length;
   const threeTCount = reports.filter((r) => r.threeT === 1).length;
