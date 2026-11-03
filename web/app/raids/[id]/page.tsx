@@ -2,12 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { RaidDetailResponse } from "@/lib/api-types";
+import type { RaidDetailResponse, RaidReportDto } from "@/lib/api-types";
 import {
   Card,
   DifficultyBadge,
   LogoutButton,
-  Meter,
   SiteHeader,
   Spinner,
   StateScreen,
@@ -17,6 +16,38 @@ import {
 } from "../../_components/ui";
 
 type Params = Promise<{ id: string }>;
+
+interface MemberProgress {
+  userId: string;
+  username: string;
+  normal: RaidReportDto | null;
+  hard: RaidReportDto | null;
+}
+
+function reportTime(report: RaidReportDto | null): number {
+  return report?.reportedAt ? new Date(report.reportedAt).getTime() : Number.POSITIVE_INFINITY;
+}
+
+// 参加者データは Bot が記録していないため、難易度レポートをユーザーごとにまとめて参加者とみなす
+function aggregateMembers(reports: RaidReportDto[]): MemberProgress[] {
+  const byUser = new Map<string, MemberProgress>();
+  for (const report of reports) {
+    const member = byUser.get(report.userId) ?? {
+      userId: report.userId,
+      username: report.username,
+      normal: null,
+      hard: null,
+    };
+    member[report.difficulty] = report;
+    byUser.set(report.userId, member);
+  }
+  // HARD 到達者を先に、その中では報告が早い順
+  return [...byUser.values()].sort((a, b) => {
+    if (!!a.hard !== !!b.hard) return a.hard ? -1 : 1;
+    const key = (m: MemberProgress) => (m.hard ? reportTime(m.hard) : reportTime(m.normal));
+    return key(a) - key(b);
+  });
+}
 
 export default function RaidDetailPage({ params }: { params: Params }) {
   const [raidId, setRaidId] = useState<string>("");
@@ -109,9 +140,8 @@ export default function RaidDetailPage({ params }: { params: Params }) {
 
   const { raid } = data;
   const active = !raid.finishedAt && new Date() <= new Date(raid.endTime);
-  const participants = [...data.participants].sort((a, b) => b.score - a.score);
-  const maxScore = participants[0]?.score ?? 0;
-  const totalScore = participants.reduce((sum, p) => sum + p.score, 0);
+  const members = aggregateMembers(data.reports);
+  const hardMembers = members.filter((m) => m.hard).length;
   const reports = [...data.reports].sort((a, b) => {
     if (!a.reportedAt) return 1;
     if (!b.reportedAt) return -1;
@@ -166,17 +196,20 @@ export default function RaidDetailPage({ params }: { params: Params }) {
               )}
             </Stat>
             <Stat label="参加者">
-              {participants.length}
+              {members.length}
               <span className="text-sm ml-0.5">人</span>
             </Stat>
-            <Stat label="合計スコア">{totalScore.toLocaleString()}</Stat>
+            <Stat label="HARD 到達">
+              {hardMembers}
+              <span className="text-sm ml-0.5">人</span>
+            </Stat>
           </dl>
         </div>
       </div>
 
       <main className="max-w-6xl w-full mx-auto px-4 py-6 grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start">
-        <Card title="参加者" aside={`${participants.length}人`}>
-          {participants.length === 0 ? (
+        <Card title="参加者" aside={`${members.length}人`}>
+          {members.length === 0 ? (
             <p className="py-12 text-center text-sm text-ink-mute">参加者がいません</p>
           ) : (
             <div className="overflow-x-auto">
@@ -185,35 +218,22 @@ export default function RaidDetailPage({ params }: { params: Params }) {
                   <tr className="text-left text-xs">
                     <th className="pl-4 pr-2 py-2.5 font-medium w-10 text-center">#</th>
                     <th className="px-3 py-2.5 font-medium">ユーザー</th>
-                    <th className="px-3 py-2.5 font-medium w-48">スコア</th>
-                    <th className="px-3 py-2.5 font-medium">参加日時</th>
+                    <th className="px-3 py-2.5 font-medium text-center">NORMAL</th>
+                    <th className="px-3 py-2.5 font-medium text-center">HARD</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line-soft">
-                  {participants.map((participant, index) => (
-                    <tr key={participant.id} className="hover:bg-surface-sub transition-colors">
-                      <td className="pl-4 pr-2 py-2.5 text-center">
-                        <span
-                          className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold tabular ${
-                            index < 3 ? "bg-primary text-white" : "text-ink-mute"
-                          }`}
-                        >
-                          {index + 1}
-                        </span>
+                  {members.map((member, index) => (
+                    <tr key={member.userId} className="hover:bg-surface-sub transition-colors">
+                      <td className="pl-4 pr-2 py-2.5 text-center text-xs font-bold text-ink-mute tabular">
+                        {index + 1}
                       </td>
-                      <td className="px-3 py-2.5 font-medium text-ink">{participant.username}</td>
-                      <td className="px-3 py-2.5">
-                        <div className="font-bold text-ink tabular">
-                          {participant.score.toLocaleString()}
-                        </div>
-                        <Meter value={maxScore > 0 ? (participant.score / maxScore) * 100 : 0} />
+                      <td className="px-3 py-2.5 font-medium text-ink">{member.username}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        <ProgressCell report={member.normal} difficulty="normal" />
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-ink-sub tabular whitespace-nowrap">
-                        {participant.joinedAt ? (
-                          formatDateTime(participant.joinedAt)
-                        ) : (
-                          <span className="text-ink-mute">-</span>
-                        )}
+                      <td className="px-3 py-2.5 text-center">
+                        <ProgressCell report={member.hard} difficulty="hard" />
                       </td>
                     </tr>
                   ))}
@@ -282,5 +302,27 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-xs text-ink-mute">{label}</dt>
       <dd className="mt-0.5 text-2xl font-bold text-ink tabular">{children}</dd>
     </div>
+  );
+}
+
+function ProgressCell({
+  report,
+  difficulty,
+}: {
+  report: RaidReportDto | null;
+  difficulty: "normal" | "hard";
+}) {
+  if (!report) {
+    return <span className="text-ink-mute">-</span>;
+  }
+  const tone =
+    difficulty === "hard" ? "bg-hard-soft text-hard" : "bg-normal-soft text-normal";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 h-6 rounded text-xs font-bold ${tone}`}
+      title={report.reportedAt ? formatDateTime(report.reportedAt) : undefined}
+    >
+      ✓{report.threeT === 1 ? <span>3T</span> : null}
+    </span>
   );
 }

@@ -116,18 +116,6 @@ export function RankBadge({ rank }: { rank: number | null }) {
   );
 }
 
-export function Meter({ value, tone = "primary" }: { value: number; tone?: "primary" | "normal" }) {
-  const width = Math.max(0, Math.min(100, value));
-  return (
-    <div className="h-1.5 w-full rounded-full bg-line-soft overflow-hidden">
-      <div
-        className={`h-full rounded-full ${tone === "primary" ? "bg-primary" : "bg-normal"}`}
-        style={{ width: `${width}%` }}
-      />
-    </div>
-  );
-}
-
 export function StateScreen({
   tone = "neutral",
   title,
