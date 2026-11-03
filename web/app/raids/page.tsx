@@ -15,7 +15,8 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from "../_components/ui";
-import { isRaidActive, useNow } from "../_components/raid";
+import { isRaidActive } from "../_components/raid";
+import { useNow } from "../_components/use-now";
 
 interface GuildMetadata {
   id: string;

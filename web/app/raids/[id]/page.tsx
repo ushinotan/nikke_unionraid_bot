@@ -14,7 +14,8 @@ import {
   formatDateTime,
   primaryButtonClass,
 } from "../../_components/ui";
-import { compareReportsByTime, isRaidActive, useNow } from "../../_components/raid";
+import { compareReportsByTime, isRaidActive } from "../../_components/raid";
+import { useNow } from "../../_components/use-now";
 
 type Params = Promise<{ id: string }>;
 
@@ -26,7 +27,8 @@ interface MemberProgress {
 }
 
 // 参加者データは Bot が記録していないため、難易度レポートをユーザーごとにまとめて参加者とみなす。
-// reports は報告日時の昇順で渡すこと（同じ難易度の報告が複数あっても最初の 1 件を採用する）
+// reports は報告日時の昇順で渡すこと。同じ難易度の報告が複数ある場合は、
+// 日時は最初の報告を採用し、3T はいずれかの報告で達成していれば達成とみなす
 function aggregateMembers(reports: RaidReportDto[]): MemberProgress[] {
   const byUser = new Map<string, MemberProgress>();
   for (const report of reports) {
@@ -38,7 +40,12 @@ function aggregateMembers(reports: RaidReportDto[]): MemberProgress[] {
     };
     // 想定外の値は DifficultyBadge と同じく NORMAL として扱う
     const difficulty = report.difficulty === "hard" ? "hard" : "normal";
-    member[difficulty] ??= report;
+    const first = member[difficulty];
+    if (!first) {
+      member[difficulty] = report;
+    } else if (report.threeT === 1 && first.threeT !== 1) {
+      member[difficulty] = { ...first, threeT: 1 };
+    }
     byUser.set(report.userId, member);
   }
   // HARD 到達者を先に、その中では報告が早い順
@@ -315,7 +322,7 @@ function ProgressCell({
       title={report.reportedAt ? formatDateTime(report.reportedAt) : undefined}
     >
       <span aria-hidden>✓</span>
-      <span className="sr-only">報告済み</span>
+      <span className="sr-only">報告済み、</span>
       {report.threeT === 1 ? <span>3T</span> : null}
     </span>
   );
