@@ -3,6 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { GuildDto, RaidSummaryDto } from "@/lib/api-types";
+import {
+  Card,
+  LogoutButton,
+  RankBadge,
+  SiteHeader,
+  Spinner,
+  StateScreen,
+  StatusBadge,
+  formatDateTime,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from "../_components/ui";
+import { isRaidActive } from "../_components/raid";
+import { useNow } from "../_components/use-now";
 
 interface GuildMetadata {
   id: string;
@@ -16,7 +30,9 @@ export default function RaidsPage() {
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
   const [raids, setRaids] = useState<RaidSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [raidsLoading, setRaidsLoading] = useState(false);
+  // ギルド確定直後に「レイドなし」が一瞬出ないよう、取得前は読み込み中として扱う
+  const [raidsLoading, setRaidsLoading] = useState(true);
+  const now = useNow();
   const [guildsError, setGuildsError] = useState<string | null>(null);
   const [raidsError, setRaidsError] = useState<string | null>(null);
 
@@ -138,98 +154,68 @@ export default function RaidsPage() {
     return metadata?.name || guildId;
   };
 
-  const getRaidStatus = (raid: RaidSummaryDto): string => {
-    if (raid.finishedAt) {
-      return "終了";
-    }
-    const now = new Date();
-    const endTime = new Date(raid.endTime);
-    if (now > endTime) {
-      return "終了";
-    }
-    return "進行中";
-  };
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("ja-JP", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const header = <SiteHeader right={<LogoutButton />} />;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-slate-400 text-lg">読み込み中...</div>
+      <div className="min-h-screen flex flex-col">
+        {header}
+        <Spinner />
       </div>
     );
   }
 
   if (guildsError) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="bg-red-950/50 border border-red-900 rounded-lg p-6 max-w-md">
-          <h2 className="text-red-400 text-xl font-bold mb-2">エラー</h2>
-          <p className="text-red-300">{guildsError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-red-900 hover:bg-red-800 text-white rounded transition-colors"
-          >
-            再読み込み
-          </button>
-        </div>
+      <div className="min-h-screen flex flex-col">
+        {header}
+        <StateScreen
+          tone="error"
+          title="エラー"
+          action={
+            <button onClick={() => window.location.reload()} className={primaryButtonClass}>
+              再読み込み
+            </button>
+          }
+        >
+          {guildsError}
+        </StateScreen>
       </div>
     );
   }
 
   if (guilds.length === 0) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 max-w-md text-center">
-          <h2 className="text-slate-300 text-xl font-bold mb-4">
-            ギルドが登録されていません
-          </h2>
-          <p className="text-slate-500">
-            Discord Bot でギルドを登録してください
-          </p>
-        </div>
+      <div className="min-h-screen flex flex-col">
+        {header}
+        <StateScreen title="ギルドが登録されていません">
+          Discord Bot でギルドを登録してください
+        </StateScreen>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#0a0a0a]">
-      <div className="bg-[#1a1a1a] border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold text-white">
-              NIKKE ユニオンレイド 戦績
-            </h1>
-            <form action="/api/auth/logout" method="post">
-              <button
-                type="submit"
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded transition-colors text-sm"
-              >
-                ログアウト
-              </button>
-            </form>
-          </div>
+  const activeCount = raids.filter((raid) => isRaidActive(raid, now)).length;
 
-          {guilds.length > 1 ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-3">
-                <label htmlFor="guild-select" className="text-slate-400 font-medium">
-                  ギルド:
+  return (
+    <div className="min-h-screen flex flex-col">
+      {header}
+
+      <div className="bg-surface border-b border-line">
+        <div className="max-w-6xl mx-auto px-4 py-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-primary mb-1">GUILD</p>
+            {guilds.length > 1 ? (
+              <div className="relative inline-block max-w-full">
+                <h1 className="sr-only">{getGuildDisplayName(selectedGuildId)}</h1>
+                <label htmlFor="guild-select" className="sr-only">
+                  ギルド
                 </label>
                 <select
                   id="guild-select"
                   value={selectedGuildId}
                   onChange={(e) => setSelectedGuildId(e.target.value)}
-                  className="bg-[#2a2a2a] border border-slate-700 text-slate-200 px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 hover:bg-[#333333] transition-colors"
+                  className="appearance-none max-w-full bg-surface border border-line hover:border-primary-line text-ink text-xl font-bold pl-3 pr-9 h-11 rounded focus:outline-none focus:ring-2 focus:ring-primary transition-colors cursor-pointer"
                 >
                   {guilds.map((guild) => (
                     <option key={guild.guildId} value={guild.guildId}>
@@ -237,123 +223,111 @@ export default function RaidsPage() {
                     </option>
                   ))}
                 </select>
+                <span
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-mute text-xs"
+                  aria-hidden
+                >
+                  ▼
+                </span>
               </div>
-            </div>
-          ) : guilds.length === 1 ? (
-            <div className="flex items-center gap-3">
-              <span className="text-slate-400 font-medium">ギルド:</span>
-              <span className="text-slate-200 font-medium">
+            ) : (
+              <h1 className="text-xl font-bold text-ink truncate">
                 {getGuildDisplayName(guilds[0].guildId)}
-              </span>
+              </h1>
+            )}
+          </div>
+
+          <dl className="flex gap-6 text-sm">
+            <div>
+              <dt className="text-xs text-ink-mute">レイド数</dt>
+              <dd className="text-lg font-bold text-ink tabular">{raids.length}</dd>
             </div>
-          ) : null}
+            <div>
+              <dt className="text-xs text-ink-mute">進行中</dt>
+              <dd className="text-lg font-bold text-primary tabular">{activeCount}</dd>
+            </div>
+          </dl>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {raidsLoading ? (
-          <div className="text-center py-12 text-slate-400">
-            読み込み中...
-          </div>
-        ) : raidsError ? (
-          <div className="bg-red-950/50 border border-red-900 rounded-lg p-6">
-            <h3 className="text-red-400 text-lg font-bold mb-2">エラー</h3>
-            <p className="text-red-300 mb-4">{raidsError}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-red-900 hover:bg-red-800 text-white rounded transition-colors"
-            >
-              再読み込み
-            </button>
-          </div>
-        ) : raids.length === 0 ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-8 text-center">
-            <p className="text-slate-400">レイドが登録されていません</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-slate-800">
-            <table className="w-full">
-              <thead className="bg-[#1a1a1a] border-b border-slate-800">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    レイド名
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    開始日時
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    終了日時
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    順位
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    パーセンテージ
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    ステータス
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-[#0f0f0f] divide-y divide-slate-800">
-                {raids.map((raid) => {
-                  const status = getRaidStatus(raid);
-                  return (
-                    <tr
-                      key={raid.id}
-                      className="hover:bg-[#1a1a1a] transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <Link
-                          href={`/raids/${raid.id}`}
-                          className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
-                        >
-                          {raid.raidName}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 text-slate-300 text-sm">
-                        {formatDate(raid.startTime)}
-                      </td>
-                      <td className="px-6 py-4 text-slate-300 text-sm">
-                        {formatDate(raid.endTime)}
-                      </td>
-                      <td className="px-6 py-4 text-slate-300 font-semibold">
-                        {raid.ranking !== null ? (
-                          <span className="text-yellow-400">
-                            {raid.ranking}位
-                          </span>
-                        ) : (
-                          <span className="text-slate-600">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-slate-300">
-                        {raid.percentage !== null ? (
-                          <span className="font-mono">
-                            {raid.percentage.toFixed(2)}%
-                          </span>
-                        ) : (
-                          <span className="text-slate-600">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
-                            status === "進行中"
-                              ? "bg-green-900/30 text-green-400 border border-green-800"
-                              : "bg-slate-800/50 text-slate-400 border border-slate-700"
-                          }`}
-                        >
-                          {status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <main className="max-w-6xl w-full mx-auto px-4 py-6">
+        <Card title="レイド一覧" aside={raids.length > 0 ? `${raids.length}件` : undefined}>
+          {raidsLoading ? (
+            <Spinner />
+          ) : raidsError ? (
+            <div className="p-6 text-center">
+              <p className="text-hard-ink font-bold mb-1">エラー</p>
+              <p className="text-sm text-ink-sub mb-4">{raidsError}</p>
+              <button onClick={() => window.location.reload()} className={secondaryButtonClass}>
+                再読み込み
+              </button>
+            </div>
+          ) : raids.length === 0 ? (
+            <p className="py-16 text-center text-sm text-ink-mute">レイドが登録されていません</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-sub text-ink-mute">
+                  <tr className="text-left text-xs">
+                    <th className="pl-5 pr-3 py-2.5 font-medium">レイド名</th>
+                    <th className="px-3 py-2.5 font-medium">期間</th>
+                    <th className="px-3 py-2.5 font-medium text-center">順位</th>
+                    <th className="px-3 py-2.5 font-medium text-right">パーセンテージ</th>
+                    <th className="px-3 py-2.5 font-medium text-center">ステータス</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line-soft">
+                  {raids.map((raid) => {
+                    const active = isRaidActive(raid, now);
+                    return (
+                      <tr
+                        key={raid.id}
+                        className={`group transition-colors ${
+                          active ? "bg-primary-soft/50 hover:bg-primary-soft" : "hover:bg-surface-sub"
+                        }`}
+                      >
+                        <td className="relative pl-5 pr-3 py-3">
+                          <span
+                            className={`absolute left-0 top-0 bottom-0 w-1 ${
+                              active ? "bg-primary" : "bg-line"
+                            }`}
+                            aria-hidden
+                          />
+                          <Link
+                            href={`/raids/${raid.id}`}
+                            className="font-bold text-ink group-hover:text-primary transition-colors"
+                          >
+                            {raid.raidName}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-3 text-xs text-ink-sub tabular whitespace-nowrap">
+                          <div>{formatDateTime(raid.startTime)}</div>
+                          <div className="text-ink-mute">〜 {formatDateTime(raid.endTime)}</div>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <RankBadge rank={raid.ranking} />
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          {raid.percentage !== null ? (
+                            <span className="font-bold text-ink tabular">
+                              {raid.percentage.toFixed(2)}%
+                            </span>
+                          ) : (
+                            <span className="text-ink-mute">-</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <StatusBadge active={active} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </main>
     </div>
   );
 }

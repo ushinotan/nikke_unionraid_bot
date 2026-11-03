@@ -1,26 +1,65 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * デザイントークン
+ * ベースは OP.GG のライトテーマ（グレー地 + 白カード + 細い罫線の高密度レイアウト）。
+ * アクセントはリバーレリオの白×紫をモチーフにしたバイオレット。
+ */
+@theme {
+  --color-page: #ebeef1;
+  --color-surface: #ffffff;
+  --color-surface-sub: #f7f7f9;
+  --color-line: #dbe0e4;
+  --color-line-soft: #ebeef1;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-ink: #202d37;
+  --color-ink-sub: #4f5a64;
+  --color-ink-mute: #5f6a75;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-primary: #7656d6;
+  --color-primary-strong: #5b3fb8;
+  --color-primary-soft: #f1edfd;
+  --color-primary-line: #d7cdf7;
+  --color-lilac: #b9a6f2;
+
+  --color-normal: #5383e8;
+  --color-normal-soft: #ecf2ff;
+  --color-hard: #e84057;
+  --color-hard-soft: #fff1f3;
+  --color-success: #00a88a;
+  --color-success-soft: #e3f7f2;
+  --color-gold: #c89b3c;
+  --color-gold-soft: #fbf3e2;
+
+  /* 淡色背景の上に置く文字用（WCAG AA 4.5:1 以上を確保した濃いめの色） */
+  --color-normal-ink: #2f5fc4;
+  --color-hard-ink: #c0243b;
+  --color-success-ink: #00735f;
+  --color-gold-ink: #8a6516;
+
+  --font-sans: var(--font-geist-sans), "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* リバーレリオのオーガンジー（薄布）を思わせる淡い紫のグラデーション帯 */
+.brand-stripe {
+  background: linear-gradient(90deg, #5b3fb8 0%, #7656d6 40%, #b9a6f2 75%, #e9e2fb 100%);
+}
+
+.brand-hero {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(185, 166, 242, 0.45) 0%, transparent 55%),
+    radial-gradient(90% 120% at 0% 100%, rgba(118, 86, 214, 0.18) 0%, transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #f6f3fe 100%);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
