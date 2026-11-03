@@ -107,7 +107,7 @@ jobs:
       # 本番 (Railway) と同じ web/Dockerfile でイメージをビルドし、起動できることを確認する
       # GitHub Actions のキャッシュでレイヤーを再利用し、web 配下が変わらない PR のビルドを短縮する
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build web image
         uses: docker/build-push-action@v6
