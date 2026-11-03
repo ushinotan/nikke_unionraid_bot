@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -65,7 +65,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # web/Dockerfile のベースイメージと同じ Node.js バージョンでテストする
       - name: Resolve Node.js version from Dockerfile
@@ -102,7 +102,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 本番 (Railway) と同じ web/Dockerfile でイメージをビルドし、起動できることを確認する
       # GitHub Actions のキャッシュでレイヤーを再利用し、web 配下が変わらない PR のビルドを短縮する
