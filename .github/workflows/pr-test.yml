@@ -67,10 +67,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 22
+      # web/Dockerfile のベースイメージと同じ Node.js バージョンでテストする
+      - name: Resolve Node.js version from Dockerfile
+        id: node-version
+        run: |
+          version=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-alpine AS base$/\1/p' Dockerfile)
+          if [ -z "$version" ]; then
+            echo "::error file=web/Dockerfile::FROM node:<version>-alpine AS base が見つかりません"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ steps.node-version.outputs.version }}
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -88,3 +99,39 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+  web-docker:
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 本番 (Railway) と同じ web/Dockerfile でイメージをビルドし、起動できることを確認する
+      - name: Build web image
+        run: docker build --pull -t web-ci ./web
+
+      - name: Check Node.js version in image
+        run: |
+          expected=$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-alpine AS base$/\1/p' web/Dockerfile)
+          actual=$(docker run --rm web-ci node -v)
+          echo "expected=v$expected actual=$actual"
+          test "$actual" = "v$expected"
+
+      - name: Smoke test web container
+        run: |
+          docker run -d --name web-ci -p 3000:3000 \
+            -e SESSION_SECRET=ci-dummy-session-secret-0123456789abcdef \
+            -e INTERNAL_API_TOKEN=ci-dummy-token \
+            -e BACKEND_URL=http://127.0.0.1:8080 \
+            web-ci
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null http://127.0.0.1:3000/; then
+              echo "web container is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs web-ci
+          exit 1

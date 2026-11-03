@@ -1,9 +1,15 @@
 version: 2
 
+# ブランチ運用: develop = 開発環境 (Railway dev_web / dev_bot)、master = 本番環境 (Railway web / bot)
+# 更新 PR は develop 向けに作成し、develop → master のリリース PR で本番へ反映する。
+# (Dependabot security updates は target-branch に関係なく常にデフォルトブランチ = develop 向けになる)
+# 本番への反映手順は README の「Node.js / 依存関係のセキュリティ更新を本番へ反映する手順」を参照。
+
 updates:
   # web (Next.js) の npm 依存
   - package-ecosystem: npm
     directory: /web
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -24,15 +30,23 @@ updates:
           - react-dom
           - "@types/react"
           - "@types/react-dom"
+      # 上記以外の開発依存のマイナー/パッチ更新は 1 つの PR にまとめる
+      # (メジャー更新と本番依存の更新は個別 PR のまま)
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
     ignore:
       # 実行環境 (node:22) に合わせるため @types/node のメジャー更新は手動で行う
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
 
-  # web の Docker ベースイメージ (node:22.x-alpine)。Node.js のセキュリティリリースを PR で検知する
+  # web の Docker ベースイメージ (node:22.x.y-alpine)。Node.js のセキュリティリリースを PR で検知する
   - package-ecosystem: docker
     directory: /web
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -48,6 +62,7 @@ updates:
   # GitHub Actions
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -55,6 +70,10 @@ updates:
     commit-message:
       prefix: "chore⬆️(ci)"
     groups:
+      # メジャー更新は破壊的変更の影響を切り分けるため個別 PR にする
       github-actions:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
