@@ -12,7 +12,7 @@ const features = [
   },
   {
     title: "参加者とレポート",
-    body: "各レイドの参加者スコアと、HARD / NORMAL の難易度レポートを確認できます。",
+    body: "各レイドの参加者ごとの到達状況と、HARD / NORMAL の難易度レポートを確認できます。",
   },
 ];
 
@@ -32,7 +32,7 @@ export default function Home() {
             ひと目で。
           </h1>
           <p className="mt-5 max-w-xl text-ink-sub leading-relaxed">
-            Discord Bot で記録したユニオンレイドの順位・参加者スコア・難易度レポートをまとめて確認できるダッシュボードです。
+            Discord Bot で記録したユニオンレイドの順位・参加者・難易度レポートをまとめて確認できるダッシュボードです。
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/raids" className={`${primaryButtonClass} h-11 px-6 text-base`}>

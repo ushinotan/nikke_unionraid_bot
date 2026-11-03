@@ -14,7 +14,7 @@
 
   --color-ink: #202d37;
   --color-ink-sub: #4f5a64;
-  --color-ink-mute: #9aa4af;
+  --color-ink-mute: #5f6a75;
 
   --color-primary: #7656d6;
   --color-primary-strong: #5b3fb8;
@@ -30,6 +30,12 @@
   --color-success-soft: #e3f7f2;
   --color-gold: #c89b3c;
   --color-gold-soft: #fbf3e2;
+
+  /* 淡色背景の上に置く文字用（WCAG AA 4.5:1 以上を確保した濃いめの色） */
+  --color-normal-ink: #2f5fc4;
+  --color-hard-ink: #c0243b;
+  --color-success-ink: #00735f;
+  --color-gold-ink: #8a6516;
 
   --font-sans: var(--font-geist-sans), "Hiragino Sans", "Hiragino Kaku Gothic ProN",
     "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;

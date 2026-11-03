@@ -15,18 +15,12 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from "../_components/ui";
+import { isRaidActive, useNow } from "../_components/raid";
 
 interface GuildMetadata {
   id: string;
   name: string;
   icon?: string | null;
-}
-
-function isRaidActive(raid: RaidSummaryDto): boolean {
-  if (raid.finishedAt) {
-    return false;
-  }
-  return new Date() <= new Date(raid.endTime);
 }
 
 export default function RaidsPage() {
@@ -35,7 +29,9 @@ export default function RaidsPage() {
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
   const [raids, setRaids] = useState<RaidSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [raidsLoading, setRaidsLoading] = useState(false);
+  // ギルド確定直後に「レイドなし」が一瞬出ないよう、取得前は読み込み中として扱う
+  const [raidsLoading, setRaidsLoading] = useState(true);
+  const now = useNow();
   const [guildsError, setGuildsError] = useState<string | null>(null);
   const [raidsError, setRaidsError] = useState<string | null>(null);
 
@@ -198,7 +194,7 @@ export default function RaidsPage() {
     );
   }
 
-  const activeCount = raids.filter((raid) => isRaidActive(raid)).length;
+  const activeCount = raids.filter((raid) => isRaidActive(raid, now)).length;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -210,6 +206,7 @@ export default function RaidsPage() {
             <p className="text-xs font-bold text-primary mb-1">GUILD</p>
             {guilds.length > 1 ? (
               <div className="relative inline-block max-w-full">
+                <h1 className="sr-only">{getGuildDisplayName(selectedGuildId)}</h1>
                 <label htmlFor="guild-select" className="sr-only">
                   ギルド
                 </label>
@@ -217,7 +214,7 @@ export default function RaidsPage() {
                   id="guild-select"
                   value={selectedGuildId}
                   onChange={(e) => setSelectedGuildId(e.target.value)}
-                  className="appearance-none max-w-full bg-surface border border-line hover:border-primary-line text-ink text-xl font-bold pl-3 pr-9 h-11 rounded focus:outline-none focus:ring-2 focus:ring-primary-line transition-colors cursor-pointer"
+                  className="appearance-none max-w-full bg-surface border border-line hover:border-primary-line text-ink text-xl font-bold pl-3 pr-9 h-11 rounded focus:outline-none focus:ring-2 focus:ring-primary transition-colors cursor-pointer"
                 >
                   {guilds.map((guild) => (
                     <option key={guild.guildId} value={guild.guildId}>
@@ -258,7 +255,7 @@ export default function RaidsPage() {
             <Spinner />
           ) : raidsError ? (
             <div className="p-6 text-center">
-              <p className="text-hard font-bold mb-1">エラー</p>
+              <p className="text-hard-ink font-bold mb-1">エラー</p>
               <p className="text-sm text-ink-sub mb-4">{raidsError}</p>
               <button onClick={() => window.location.reload()} className={secondaryButtonClass}>
                 再読み込み
@@ -280,7 +277,7 @@ export default function RaidsPage() {
                 </thead>
                 <tbody className="divide-y divide-line-soft">
                   {raids.map((raid) => {
-                    const active = isRaidActive(raid);
+                    const active = isRaidActive(raid, now);
                     return (
                       <tr
                         key={raid.id}

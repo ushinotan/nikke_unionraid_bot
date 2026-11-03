@@ -72,7 +72,7 @@ export function Card({
 
 export function StatusBadge({ active }: { active: boolean }) {
   return active ? (
-    <span className="inline-flex items-center gap-1.5 px-2 h-6 rounded text-xs font-bold bg-primary-soft text-primary">
+    <span className="inline-flex items-center gap-1.5 px-2 h-6 rounded text-xs font-bold bg-primary-soft text-primary-strong">
       <span className="relative flex w-1.5 h-1.5">
         <span className="absolute inline-flex w-full h-full rounded-full bg-primary opacity-60 animate-ping" />
         <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-primary" />
@@ -88,11 +88,11 @@ export function StatusBadge({ active }: { active: boolean }) {
 
 export function DifficultyBadge({ difficulty }: { difficulty: "normal" | "hard" }) {
   return difficulty === "hard" ? (
-    <span className="inline-flex items-center px-2 h-6 rounded text-xs font-bold bg-hard-soft text-hard">
+    <span className="inline-flex items-center px-2 h-6 rounded text-xs font-bold bg-hard-soft text-hard-ink">
       HARD
     </span>
   ) : (
-    <span className="inline-flex items-center px-2 h-6 rounded text-xs font-bold bg-normal-soft text-normal">
+    <span className="inline-flex items-center px-2 h-6 rounded text-xs font-bold bg-normal-soft text-normal-ink">
       NORMAL
     </span>
   );
@@ -104,9 +104,9 @@ export function RankBadge({ rank }: { rank: number | null }) {
   }
   const tone =
     rank <= 3
-      ? "bg-gold-soft text-gold"
+      ? "bg-gold-soft text-gold-ink"
       : rank <= 10
-        ? "bg-primary-soft text-primary"
+        ? "bg-primary-soft text-primary-strong"
         : "bg-surface-sub text-ink-sub";
   return (
     <span className={`inline-flex items-center gap-0.5 px-2 h-6 rounded font-bold tabular ${tone}`}>
@@ -133,7 +133,7 @@ export function StateScreen({
         <div className={`h-1 ${tone === "error" ? "bg-hard" : "brand-stripe"}`} />
         <div className="p-6 text-center">
           {title ? (
-            <h2 className={`text-base font-bold mb-2 ${tone === "error" ? "text-hard" : "text-ink"}`}>
+            <h2 className={`text-base font-bold mb-2 ${tone === "error" ? "text-hard-ink" : "text-ink"}`}>
               {title}
             </h2>
           ) : null}
@@ -147,8 +147,8 @@ export function StateScreen({
 
 export function Spinner({ label = "読み込み中..." }: { label?: string }) {
   return (
-    <div className="flex items-center justify-center gap-3 py-16 text-sm text-ink-mute">
-      <span className="w-4 h-4 rounded-full border-2 border-primary-line border-t-primary animate-spin" />
+    <div role="status" className="flex items-center justify-center gap-3 py-16 text-sm text-ink-mute">
+      <span className="w-4 h-4 rounded-full border-2 border-primary-line border-t-primary animate-spin" aria-hidden />
       {label}
     </div>
   );
@@ -161,7 +161,11 @@ export const secondaryButtonClass =
   "inline-flex items-center justify-center h-9 px-4 rounded border border-line bg-surface hover:bg-surface-sub text-ink-sub text-sm font-medium transition-colors";
 
 export function formatDateTime(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("ja-JP", {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+  return date.toLocaleString("ja-JP", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

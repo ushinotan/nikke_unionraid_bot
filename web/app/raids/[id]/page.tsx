@@ -14,6 +14,7 @@ import {
   formatDateTime,
   primaryButtonClass,
 } from "../../_components/ui";
+import { compareReportsByTime, isRaidActive, useNow } from "../../_components/raid";
 
 type Params = Promise<{ id: string }>;
 
@@ -24,11 +25,8 @@ interface MemberProgress {
   hard: RaidReportDto | null;
 }
 
-function reportTime(report: RaidReportDto | null): number {
-  return report?.reportedAt ? new Date(report.reportedAt).getTime() : Number.POSITIVE_INFINITY;
-}
-
-// 参加者データは Bot が記録していないため、難易度レポートをユーザーごとにまとめて参加者とみなす
+// 参加者データは Bot が記録していないため、難易度レポートをユーザーごとにまとめて参加者とみなす。
+// reports は報告日時の昇順で渡すこと（同じ難易度の報告が複数あっても最初の 1 件を採用する）
 function aggregateMembers(reports: RaidReportDto[]): MemberProgress[] {
   const byUser = new Map<string, MemberProgress>();
   for (const report of reports) {
@@ -38,14 +36,16 @@ function aggregateMembers(reports: RaidReportDto[]): MemberProgress[] {
       normal: null,
       hard: null,
     };
-    member[report.difficulty] = report;
+    // 想定外の値は DifficultyBadge と同じく NORMAL として扱う
+    const difficulty = report.difficulty === "hard" ? "hard" : "normal";
+    member[difficulty] ??= report;
     byUser.set(report.userId, member);
   }
   // HARD 到達者を先に、その中では報告が早い順
+  const leading = (m: MemberProgress) => (m.hard ?? m.normal) as RaidReportDto;
   return [...byUser.values()].sort((a, b) => {
     if (!!a.hard !== !!b.hard) return a.hard ? -1 : 1;
-    const key = (m: MemberProgress) => (m.hard ? reportTime(m.hard) : reportTime(m.normal));
-    return key(a) - key(b);
+    return compareReportsByTime(leading(a), leading(b));
   });
 }
 
@@ -54,6 +54,7 @@ export default function RaidDetailPage({ params }: { params: Params }) {
   const [data, setData] = useState<RaidDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const now = useNow();
 
   useEffect(() => {
     params.then((p) => {
@@ -139,13 +140,9 @@ export default function RaidDetailPage({ params }: { params: Params }) {
   }
 
   const { raid } = data;
-  const active = !raid.finishedAt && new Date() <= new Date(raid.endTime);
-  const members = aggregateMembers(data.reports);
-  const reports = [...data.reports].sort((a, b) => {
-    if (!a.reportedAt) return 1;
-    if (!b.reportedAt) return -1;
-    return new Date(a.reportedAt).getTime() - new Date(b.reportedAt).getTime();
-  });
+  const active = isRaidActive(raid, now);
+  const reports = [...(data.reports ?? [])].sort(compareReportsByTime);
+  const members = aggregateMembers(reports);
   const hardCount = reports.filter((r) => r.difficulty === "hard").length;
   const threeTCount = reports.filter((r) => r.threeT === 1).length;
 
@@ -176,7 +173,7 @@ export default function RaidDetailPage({ params }: { params: Params }) {
           <dl className="mt-5 grid grid-cols-3 gap-px bg-line rounded-md overflow-hidden border border-line">
             <Stat label="順位">
               {raid.ranking !== null ? (
-                <span className={raid.ranking <= 3 ? "text-gold" : "text-primary"}>
+                <span className={raid.ranking <= 3 ? "text-gold-ink" : "text-primary"}>
                   {raid.ranking}
                   <span className="text-sm ml-0.5">位</span>
                 </span>
@@ -243,11 +240,11 @@ export default function RaidDetailPage({ params }: { params: Params }) {
           aside={
             reports.length > 0 ? (
               <span className="tabular">
-                <span className="text-hard font-bold">HARD {hardCount}</span>
+                <span className="text-hard-ink font-bold">HARD {hardCount}</span>
                 <span className="mx-1.5">/</span>
-                <span className="text-normal font-bold">NORMAL {reports.length - hardCount}</span>
+                <span className="text-normal-ink font-bold">NORMAL {reports.length - hardCount}</span>
                 <span className="mx-1.5">/</span>
-                <span className="text-success font-bold">3T {threeTCount}</span>
+                <span className="text-success-ink font-bold">3T {threeTCount}</span>
               </span>
             ) : undefined
           }
@@ -277,7 +274,7 @@ export default function RaidDetailPage({ params }: { params: Params }) {
                     </div>
                   </div>
                   {report.threeT === 1 ? (
-                    <span className="inline-flex items-center px-2 h-6 rounded text-xs font-bold bg-success-soft text-success">
+                    <span className="inline-flex items-center px-2 h-6 rounded text-xs font-bold bg-success-soft text-success-ink">
                       3T
                     </span>
                   ) : null}
@@ -311,13 +308,15 @@ function ProgressCell({
     return <span className="text-ink-mute">-</span>;
   }
   const tone =
-    difficulty === "hard" ? "bg-hard-soft text-hard" : "bg-normal-soft text-normal";
+    difficulty === "hard" ? "bg-hard-soft text-hard-ink" : "bg-normal-soft text-normal-ink";
   return (
     <span
       className={`inline-flex items-center gap-1 px-2 h-6 rounded text-xs font-bold ${tone}`}
       title={report.reportedAt ? formatDateTime(report.reportedAt) : undefined}
     >
-      ✓{report.threeT === 1 ? <span>3T</span> : null}
+      <span aria-hidden>✓</span>
+      <span className="sr-only">報告済み</span>
+      {report.threeT === 1 ? <span>3T</span> : null}
     </span>
   );
 }
