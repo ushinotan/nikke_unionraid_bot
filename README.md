@@ -1,5 +1,7 @@
 # Docker環境でのセットアップ
 
+> 本番環境へのデプロイ手順（Railway / VPS）、環境変数の詳細、マイグレーション、運用については [DEPLOYMENT.md](DEPLOYMENT.md) を参照してください。
+
 ## 前提条件
 - Docker
 - Docker Compose V2
@@ -36,7 +38,7 @@ docker-compose up -d
 
 - `docker-compose.yml` では 8080 を `127.0.0.1` のみに公開しています（ホスト外部からは直接アクセスできません）。
 - `/api` 配下は `X-Internal-Api-Token` ヘッダーが `INTERNAL_API_TOKEN` と一致しない場合 401 を返します（`/health` は認証不要）。
-- Railway などにデプロイする場合は、ボットのサービスに公開ドメインを付与せず、Private Networking（例: `BACKEND_URL=http://<bot-service>.railway.internal:8080`）経由でのみ Web から接続してください。bot / web の両サービスに同じ `INTERNAL_API_TOKEN` を設定します。
+- Railway などへデプロイする場合の構成（ボットを公開せず Private Networking 経由で接続する等）は [DEPLOYMENT.md](DEPLOYMENT.md) を参照してください。
 
 ### 3. ログの確認
 ```bash
