@@ -244,9 +244,14 @@ npm run lint
      ```bash
      git fetch origin
      git switch -c hotfix/node-<version> origin/master
-     git cherry-pick <develop にマージされた修正のコミット>
+     # Squash merge した場合: develop 上の squash されたコミット 1 つを指定する
+     git cherry-pick <squash コミット>
+     # Merge commit でマージした場合: マージコミットを -m 1 付きで指定する
+     #（グループ化された PR などでコミットが複数あっても、PR の変更をまとめて取り込める）
+     git cherry-pick -m 1 <マージコミット>
      git push -u origin hotfix/node-<version>
      ```
+     どちらの方式でマージしたかは、develop の履歴（`git log --oneline --first-parent origin/develop`）で確認できます（`Merge pull request #...` ならマージコミット）。
      修正はすでに develop に入っているため、develop へのバックマージは不要です。
    - master へのマージで Railway の `web` が自動で再ビルド・再デプロイされます。
 3. **本番で反映を確認**
