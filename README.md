@@ -207,6 +207,26 @@ npm run start
 npm run lint
 ```
 
+### 依存関係の脆弱性対策
+
+- **CI**: PR ごとに `.github/workflows/pr-test.yml` の `web` ジョブで `npm ci` → `lint` → `test` → `build` → `npm audit --omit=dev --audit-level=high` を実行します。本番依存に high 以上の脆弱性があると失敗します。
+- **Dependabot**: `.github/dependabot.yml` で以下の更新 PR を毎週（月曜）作成します。
+  - `npm`（`/web`）: `next` / `eslint-config-next` と React 系はそれぞれ 1 つの PR にグループ化
+  - `docker`（`/web`）: `web/Dockerfile` のベースイメージ `node:22.x.y-alpine`
+  - `github-actions`: ワークフローで使用する Actions
+- Node.js / npm パッケージのメジャー更新（`node` イメージ、`@types/node`）は自動 PR の対象外です。実行環境の LTS を切り替える際に手動で更新してください。
+
+#### Node.js のセキュリティリリース時の対応
+
+`web/Dockerfile` のベースイメージはパッチバージョンまで固定しているため、Node.js 本体の修正はイメージを更新・再ビルドしない限り取り込まれません。[Node.js のセキュリティリリース](https://nodejs.org/en/blog/vulnerability) が出たら以下を行ってください。
+
+1. Dependabot の `node` イメージ更新 PR を確認する（未着の場合は `web/Dockerfile` の 3 箇所の `FROM node:22.x.y-alpine` を手動で更新し PR を作成）
+2. CI の `web` ジョブが成功したことを確認してマージする
+3. web イメージを再ビルド・再デプロイする
+   - Docker Compose: `docker-compose build --pull web && docker-compose up -d web`
+   - Railway: main へのマージで自動デプロイされない設定の場合は、web サービスを手動で Redeploy する
+4. 起動後、コンテナ内の Node.js バージョンを確認する: `docker-compose exec web node -v`
+
 ## Dev Container での開発（Kotlin）
 
 このリポジトリのメイン実装は Kotlin です。`.devcontainer/` 設定で Kotlin 開発に必要なツールが揃います。

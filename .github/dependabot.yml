@@ -1,0 +1,60 @@
+version: 2
+
+updates:
+  # web (Next.js) の npm 依存
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore⬆️(web)"
+    groups:
+      # next と eslint-config-next はバージョンを揃える必要があるため同一 PR にまとめる
+      nextjs:
+        patterns:
+          - next
+          - eslint-config-next
+          - "@next/*"
+      react:
+        patterns:
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
+    ignore:
+      # 実行環境 (node:22) に合わせるため @types/node のメジャー更新は手動で行う
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
+
+  # web の Docker ベースイメージ (node:22.x-alpine)。Node.js のセキュリティリリースを PR で検知する
+  - package-ecosystem: docker
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: "chore⬆️(docker)"
+    ignore:
+      # Node.js のメジャー更新 (LTS 切り替え) は手動で判断する
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
+    commit-message:
+      prefix: "chore⬆️(ci)"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
