@@ -7,7 +7,12 @@ export async function GET() {
     const session = await getSession();
     return NextResponse.json({
       selectedGuildId: session.selectedGuildId || null,
-      guilds: session.guilds || [],
+      // 権限情報はクライアントに返さない
+      guilds: (session.guilds || []).map(({ id, name, icon }) => ({
+        id,
+        name,
+        icon,
+      })),
     });
   } catch (error) {
     console.error("[Session] Failed to get selected guild:", error);
