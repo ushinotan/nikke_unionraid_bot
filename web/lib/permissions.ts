@@ -1,4 +1,5 @@
 import type { SessionData } from "@/lib/session";
+import type { RaidSummaryDto } from "@/lib/api-types";
 
 /** ADMINISTRATOR 権限 (1 << 3) */
 export const ADMINISTRATOR = BigInt(0x8);
@@ -26,4 +27,24 @@ export function isPrivileged(
     hasPermission(guild.permissions, ADMINISTRATOR) ||
     hasPermission(guild.permissions, MANAGE_GUILD)
   );
+}
+
+/**
+ * 参加者・3T 報告の操作可否。
+ * - 所属していないギルドのレイドは不可
+ * - 特権ユーザーなら、終了済みレイドも含めて全員分を操作できる
+ * - 一般メンバーは本人分のみ、かつ終了済みレイドは不可
+ *
+ * session は必ずサーバー側のセッションを渡すこと（クライアントから送られた値で判定しない）。
+ */
+export function canEditParticipant(
+  session: Pick<SessionData, "userId" | "guildIds" | "guilds">,
+  raid: Pick<RaidSummaryDto, "guildId" | "finishedAt">,
+  targetUserId: string
+): boolean {
+  if (!session.userId) return false;
+  if (!session.guildIds?.includes(raid.guildId)) return false;
+  if (isPrivileged(session, raid.guildId)) return true;
+  if (session.userId !== targetUserId) return false;
+  return raid.finishedAt === null;
 }
