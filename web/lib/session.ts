@@ -6,6 +6,10 @@ export interface GuildMetadata {
   id: string;
   name: string;
   icon?: string | null;
+  /** ログイン時点でサーバーのオーナーかどうか（この項目追加前のセッションには無い） */
+  owner?: boolean;
+  /** ログイン時点の権限ビットフィールド（Discord API が返す10進数文字列） */
+  permissions?: string;
 }
 
 export interface SessionData {
