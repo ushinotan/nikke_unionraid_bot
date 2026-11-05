@@ -6,13 +6,9 @@ export const ADMINISTRATOR = BigInt(0x8);
 export const MANAGE_GUILD = BigInt(0x20);
 
 function hasPermission(permissions: string | undefined, flag: bigint): boolean {
-  if (!permissions) return false;
-  try {
-    return (BigInt(permissions) & flag) === flag;
-  } catch {
-    // 数値として解釈できない値は権限なしとして扱う
-    return false;
-  }
+  // 10 進数の非負整数以外（負の数・16進数・前後の空白など）は権限なしとして扱う
+  if (!permissions || !/^\d+$/.test(permissions)) return false;
+  return (BigInt(permissions) & flag) === flag;
 }
 
 /**
