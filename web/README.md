@@ -163,6 +163,11 @@ if (!auth.ok) return auth.response; // 401 / 400 / 403 / 404
 - `privileged`: 特権ユーザー（オーナー / `ADMINISTRATOR` / `MANAGE_GUILD`）のみ
 - `participant`: `canEditParticipant` で判定（本人は進行中レイドのみ、特権ユーザーは終了済みを含め全員分）
 - 所属していないギルドのレイドは常に 403
+- `participant` の `targetUserId` は、**実際に書き込むレコードの持ち主**から取ってください
+  - 自分の分を作成・更新するルートでは、`targetUserId` もバックエンドに送るユーザー ID も `auth.userId` を使う
+  - レコード ID（participantId / reportId など）で操作するルートでは、バックエンドから取得したそのレコードの `userId` を `targetUserId` にする
+  - リクエストボディのユーザー ID で判定し、別のレコード ID を転送すると、権限チェックを通ったまま他人のレコードを書き換えられてしまいます
+- バックエンドに書き込みを転送するときは、パスパラメータではなく `auth.raid.id` を raidId に使ってください（確認したレイドと書き込むレイドを一致させるため）
 
 ## 認証フロー
 

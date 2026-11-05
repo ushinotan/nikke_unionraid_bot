@@ -12,6 +12,13 @@ import type { SessionData } from "@/lib/session";
  * 書き込み系 API ルートで必要な権限。
  * - privileged: 特権ユーザーのみ（順位・パーセンテージの編集など）
  * - participant: 対象ユーザーの参加者・3T 報告を操作できること（本人 or 特権ユーザー）
+ *
+ * targetUserId は「実際に書き込むレコードの持ち主」から取ること。
+ * body のユーザー ID をそのまま使い、別の participantId / reportId をバックエンドに転送すると、
+ * 権限チェックは通っても他人のレコードを書き換えられてしまう。
+ * - 自分の分を作成・更新するルート: targetUserId もバックエンドに送るユーザー ID も、auth.userId を使う
+ * - レコード ID で操作するルート: バックエンドから取得したそのレコードの userId を targetUserId にする
+ * - バックエンドへの転送では、raidId に auth.raid.id を使う
  */
 export type RaidEditRequirement =
   | { kind: "privileged" }
