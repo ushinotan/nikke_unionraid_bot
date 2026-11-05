@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { isPrivileged } from "../lib/permissions";
+import { canEditParticipant, isPrivileged } from "../lib/permissions";
 import type { GuildMetadata, SessionData } from "../lib/session";
 
 const GUILD_ID = "111111111111111111";
@@ -70,5 +70,51 @@ describe("isPrivileged", () => {
   it("permissions が16進数や前後に空白を含む文字列なら false", () => {
     assert.strictEqual(isPrivileged(sessionWith({ owner: false, permissions: "0x20" }), GUILD_ID), false);
     assert.strictEqual(isPrivileged(sessionWith({ owner: false, permissions: " 32 " }), GUILD_ID), false);
+  });
+});
+
+describe("canEditParticipant", () => {
+  const SELF = "900000000000000001";
+  const OTHER = "900000000000000002";
+  const ongoing = { guildId: GUILD_ID, finishedAt: null };
+  const finished = { guildId: GUILD_ID, finishedAt: "2026-11-01T00:00:00Z" };
+
+  function member(guild: Partial<GuildMetadata>) {
+    return { userId: SELF, guildIds: [GUILD_ID], ...sessionWith(guild) };
+  }
+  const general = member({ owner: false, permissions: "0" });
+  const privileged = member({ owner: false, permissions: "32" });
+
+  it("本人は進行中レイドを操作できる", () => {
+    assert.strictEqual(canEditParticipant(general, ongoing, SELF), true);
+  });
+
+  it("本人でも終了済みレイドは操作できない", () => {
+    assert.strictEqual(canEditParticipant(general, finished, SELF), false);
+  });
+
+  it("一般メンバーは他人を操作できない", () => {
+    assert.strictEqual(canEditParticipant(general, ongoing, OTHER), false);
+  });
+
+  it("特権ユーザーは終了済みレイドの他人も操作できる", () => {
+    assert.strictEqual(canEditParticipant(privileged, ongoing, OTHER), true);
+    assert.strictEqual(canEditParticipant(privileged, finished, OTHER), true);
+  });
+
+  it("所属していないギルドのレイドは本人・特権ユーザーでも操作できない", () => {
+    const outside = { guildId: "222222222222222222", finishedAt: null };
+    assert.strictEqual(canEditParticipant(general, outside, SELF), false);
+    assert.strictEqual(canEditParticipant(member({ owner: true }), outside, SELF), false);
+  });
+
+  it("guildIds に含まれなければ guilds に権限があっても操作できない", () => {
+    const session = { ...privileged, guildIds: [] };
+    assert.strictEqual(canEditParticipant(session, ongoing, OTHER), false);
+  });
+
+  it("未ログインなら操作できない", () => {
+    const session = { ...general, userId: undefined };
+    assert.strictEqual(canEditParticipant(session, ongoing, SELF), false);
   });
 });

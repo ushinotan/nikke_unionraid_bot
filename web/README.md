@@ -146,6 +146,24 @@ Next.js BFF が提供する API エンドポイント：
 
 データエンドポイントは Spring Boot API へのプロキシとして動作します。
 
+### 書き込み系エンドポイントの権限チェック
+
+Spring Boot API は BFF からのリクエストをそのまま信用するため、書き込みを行う API Route では
+**バックエンドに転送する前に必ず** `requireRaidEditPermission`（`lib/raid-authorization.ts`）で権限を確認してください。
+画面でボタンを隠すのは補助であり、防御には使いません。
+
+```ts
+const session = await getSession();
+const auth = await requireRaidEditPermission(session, raidId, { kind: "privileged" });
+// 参加者・3T 報告なら { kind: "participant", targetUserId }
+if (!auth.ok) return auth.response; // 401 / 400 / 403 / 404
+```
+
+- 判定にはセッションの `userId` / `guildIds` / `guilds` と、バックエンドから取得したレイドのギルド ID を使います（クライアントから送られたユーザー ID・ギルド ID は使いません）
+- `privileged`: 特権ユーザー（オーナー / `ADMINISTRATOR` / `MANAGE_GUILD`）のみ
+- `participant`: `canEditParticipant` で判定（本人は進行中レイドのみ、特権ユーザーは終了済みを含め全員分）
+- 所属していないギルドのレイドは常に 403
+
 ## 認証フロー
 
 1. ユーザーが保護されたページ（例: `/raids`）にアクセス
