@@ -1,6 +1,6 @@
 # ---- Base stage ----
 # Node.js のバージョンはここだけで管理する（Dependabot が更新し、CI もこの値を参照する）
-FROM node:22.23.4-alpine AS base
+FROM node:22.23.5-alpine AS base
 
 # ---- Dependencies stage ----
 FROM base AS deps
