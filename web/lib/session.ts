@@ -18,6 +18,34 @@ export interface SessionData {
   guilds?: GuildMetadata[];
   selectedGuildId?: string;
   state?: string;
+  /**
+   * guilds の owner / permissions を Discord から取得した時刻（UNIX エポックのミリ秒）。
+   * ログイン時（OAuth callback）にだけサーバー側で入れる。
+   * この値から PRIVILEGE_MAX_AGE_MS（lib/permissions.ts）を過ぎたら、特権ユーザーとして扱わない。
+   * この項目追加前のセッションには無く、その場合も特権なしとして扱う。
+   */
+  loggedInAt?: number;
+}
+
+/**
+ * ログイン（OAuth callback）で取得したユーザー・ギルド情報をセッションに入れる。
+ * 権限情報（owner / permissions）を取得した時刻として loggedInAt に now を入れる（特権判定の有効期限に使う）。
+ * 選択中のギルドに所属しなくなっていたら、選択を解除する。保存（session.save）は呼び出し側で行う。
+ */
+export function applyLogin(
+  session: SessionData,
+  login: { userId: string; guilds: GuildMetadata[] },
+  now: number = Date.now()
+): void {
+  const guildIds = login.guilds.map((g) => g.id);
+  session.userId = login.userId;
+  session.guildIds = guildIds;
+  session.guilds = login.guilds;
+  session.loggedInAt = now;
+
+  if (session.selectedGuildId && !guildIds.includes(session.selectedGuildId)) {
+    delete session.selectedGuildId;
+  }
 }
 
 export function getSessionOptions(): SessionOptions {

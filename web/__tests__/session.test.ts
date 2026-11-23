@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert";
-import { getSessionOptions } from "../lib/session";
+import { applyLogin, getSessionOptions, type SessionData } from "../lib/session";
 
 const ENV_KEYS = ["APP_BASE_URL", "DISCORD_REDIRECT_URI", "SESSION_SECRET", "NODE_ENV"] as const;
 
@@ -75,5 +75,43 @@ describe("session", () => {
     delete env.SESSION_SECRET;
 
     assert.throws(() => getSessionOptions(), /SESSION_SECRET/);
+  });
+});
+
+describe("applyLogin", () => {
+  const NOW = Date.UTC(2026, 10, 1);
+  const guild = { id: "111111111111111111", name: "Guild", icon: null, owner: true, permissions: "8" };
+
+  it("ユーザー・ギルド情報と loggedInAt（ログイン時刻）を入れる", () => {
+    const session: SessionData = {};
+    applyLogin(session, { userId: "900000000000000001", guilds: [guild] }, NOW);
+
+    assert.deepStrictEqual(session, {
+      userId: "900000000000000001",
+      guildIds: [guild.id],
+      guilds: [guild],
+      loggedInAt: NOW,
+    });
+  });
+
+  it("再ログインで loggedInAt を新しい時刻に更新する", () => {
+    const session: SessionData = { loggedInAt: NOW - 2 * 24 * 60 * 60 * 1000 };
+    applyLogin(session, { userId: "900000000000000001", guilds: [guild] }, NOW);
+
+    assert.strictEqual(session.loggedInAt, NOW);
+  });
+
+  it("選択中のギルドに所属しなくなっていたら選択を解除する", () => {
+    const session: SessionData = { selectedGuildId: "222222222222222222" };
+    applyLogin(session, { userId: "900000000000000001", guilds: [guild] }, NOW);
+
+    assert.strictEqual(session.selectedGuildId, undefined);
+  });
+
+  it("選択中のギルドに所属していれば選択を残す", () => {
+    const session: SessionData = { selectedGuildId: guild.id };
+    applyLogin(session, { userId: "900000000000000001", guilds: [guild] }, NOW);
+
+    assert.strictEqual(session.selectedGuildId, guild.id);
   });
 });
