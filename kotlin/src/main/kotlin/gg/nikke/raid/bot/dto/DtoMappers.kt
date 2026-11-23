@@ -3,6 +3,7 @@ package gg.nikke.raid.bot.dto
 import gg.nikke.raid.bot.entity.RaidParticipant
 import gg.nikke.raid.bot.entity.RaidReport
 import gg.nikke.raid.bot.entity.UnionRaid
+import gg.nikke.raid.bot.service.GuildMember
 
 /**
  * UnionRaid エンティティを RaidSummaryDto に変換する拡張関数
@@ -42,4 +43,13 @@ fun RaidReport.toDto(): ReportDto = ReportDto(
     difficulty = this.difficulty,
     threeT = this.is3t,
     reportedAt = this.reportedAt
+)
+
+/**
+ * GuildMember を GuildMemberDto に変換する拡張関数
+ */
+fun GuildMember.toDto(): GuildMemberDto = GuildMemberDto(
+    userId = this.userId.toString(),
+    displayName = this.displayName,
+    avatarUrl = this.avatarUrl
 )

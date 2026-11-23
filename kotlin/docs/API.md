@@ -183,6 +183,57 @@ Next.js BFF が認証を担当し、Spring Boot API は信頼されたバック�
 
 ---
 
+### 4. ギルドメンバー一覧取得
+
+**GET** `/api/guilds/{guildId}/members`
+
+bot が参加しているギルドのメンバー一覧を取得する（bot / system ユーザーは除外）。Server Members Intent が ON であることが前提（DEPLOYMENT.md 参照）。
+
+#### パスパラメータ
+
+| 名前 | 型 | 説明 |
+|---|---|---|
+| guildId | Long | ギルドID |
+
+#### クエリパラメータ
+
+| 名前 | 型 | 必須 | 説明 |
+|---|---|---|---|
+| query | string | 任意 | 表示名（ニックネーム・グローバル名・ユーザー名）の部分一致検索（大文字小文字を区別しない）。100文字以内（前後の空白を除去する**前**の生の値で判定）。除去後に空なら絞り込まない |
+| limit | int | 任意 | 最大件数。1〜100、既定100 |
+
+#### レスポンス例
+
+```json
+{
+  "members": [
+    {
+      "userId": "123456789012345678",
+      "displayName": "Alice",
+      "avatarUrl": "https://cdn.discordapp.com/avatars/123456789012345678/abc.png"
+    }
+  ],
+  "truncated": false
+}
+```
+
+- `displayName` は ニックネーム → グローバル名 → ユーザー名 の順で、空白のみでない最初の値。
+- 並び順は `displayName`、同値なら `userId` の昇順。
+- `limit` を超える該当があった場合、先頭 `limit` 件を返し `truncated` が `true` になる。
+- **注**: `userId` は文字列として返されます。
+
+#### エラーレスポンス
+
+| ステータス | error | 条件 |
+|---|---|---|
+| 400 Bad Request | `BAD_REQUEST` | `query` が100文字超、`limit` が範囲外、`guildId` / `limit` の型不正 |
+| 401 Unauthorized | - | `X-Internal-Api-Token` が不正（フィルターが返す） |
+| 404 Not Found | `NOT_FOUND` | bot がそのギルドに参加していない |
+| 503 Service Unavailable | `SERVICE_UNAVAILABLE` | メンバー一覧を取得できない（bot 未接続・シャットダウン中・取得タイムアウト10秒など） |
+| 500 Internal Server Error | `INTERNAL_SERVER_ERROR` | 予期しないエラー |
+
+---
+
 ## エラーレスポンス形式
 
 予期しないエラーが発生した場合は、以下の形式でエラー情報が返される。

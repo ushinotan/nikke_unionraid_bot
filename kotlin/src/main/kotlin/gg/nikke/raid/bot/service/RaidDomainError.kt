@@ -11,4 +11,6 @@ sealed class RaidDomainError(message: String) : Exception(message) {
     data object NoDifficultySelected : RaidDomainError("取り消す難易度が指定されていません")
     data class RankingOutOfRange(val ranking: Int) : RaidDomainError("順位は1以上で指定してください: $ranking")
     data class PercentageOutOfRange(val percentage: BigDecimal) : RaidDomainError("パーセンテージは0より大きく100以下にしてください: $percentage")
+    data object GuildNotFound : RaidDomainError("サーバーが見つかりません")
+    data object GuildMembersUnavailable : RaidDomainError("メンバー一覧を取得できませんでした。しばらくしてから再度お試しください")
 }

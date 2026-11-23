@@ -6,6 +6,8 @@ import jakarta.annotation.PreDestroy
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.exceptions.InvalidTokenException
+import net.dv8tion.jda.api.requests.GatewayIntent
+import net.dv8tion.jda.api.utils.MemberCachePolicy
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
@@ -25,12 +27,14 @@ class DiscordBot(
     private val discordConfig: DiscordConfig,
     private val eventListener: UnionRaidEventListener,
     private val scheduler: RaidNotificationScheduler,
+    private val guildMemberSource: JdaGuildMemberSource,
 ) {
     private val logger = LoggerFactory.getLogger(DiscordBot::class.java)
     private lateinit var jda: JDA
 
     private val DEFAULT_TOKEN = "dummy-token-for-devcontainer"
     private val READY_TIMEOUT_SECONDS = 30L
+    private val INTENT_HINT = "Developer Portal で Server Members Intent が ON か確認してください。"
 
     @PostConstruct
     fun init() {
@@ -41,9 +45,12 @@ class DiscordBot(
 
         try {
             jda = JDABuilder.createDefault(token)
+                .enableIntents(GatewayIntent.GUILD_MEMBERS)
+                .setMemberCachePolicy(MemberCachePolicy.ALL)
                 .addEventListeners(eventListener)
                 .build()
             waitForReadyWithTimeout(jda)
+            guildMemberSource.attach(jda)
             CommandRegistrar.register(jda, discordConfig.devGuildId)
             scheduler.resumeSchedules(jda)
             logger.info("Discord Botが正常に起動しました。")
@@ -56,6 +63,7 @@ class DiscordBot(
 
     @PreDestroy
     fun shutdown() {
+        guildMemberSource.detach()
         if (::jda.isInitialized) {
             jda.shutdown()
             logger.info("Discord Botが正常にシャットダウンしました。")
@@ -89,7 +97,7 @@ class DiscordBot(
         } catch (e: ExecutionException) {
             readyFuture.cancel(true)
             jda.shutdownNow()
-            throw IllegalStateException("Discord BotのREADY待機中にエラーが発生したため、起動を中止します。", e.cause ?: e)
+            throw IllegalStateException("Discord BotのREADY待機中にエラーが発生したため、起動を中止します。$INTENT_HINT", e.cause ?: e)
         }
     }
 }
