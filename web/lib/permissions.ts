@@ -13,13 +13,37 @@ function hasPermission(permissions: string | undefined, flag: bigint): boolean {
 }
 
 /**
+ * セッションの権限情報（owner / permissions）を信用する時間（1 時間）。
+ * loggedInAt からこの時間を過ぎたら、特権ユーザーとして扱わない（再ログインで取り直す）。
+ */
+export const PRIVILEGE_MAX_AGE_MS = 60 * 60 * 1000;
+
+/**
+ * セッションの権限情報が古い（または取得時刻が無い）なら true。
+ * - loggedInAt が無い・有限の数値でない → 古い扱い（安全側に倒す）
+ * - now - loggedInAt >= PRIVILEGE_MAX_AGE_MS → 古い扱い
+ * - loggedInAt が now より未来 → 古い扱いにしない（値はサーバーだけが入れる暗号化 Cookie の中なので、時計のずれ程度では拒否しない）
+ */
+export function isPermissionStale(
+  session: Pick<SessionData, "loggedInAt">,
+  now: number = Date.now()
+): boolean {
+  const { loggedInAt } = session;
+  if (typeof loggedInAt !== "number" || !Number.isFinite(loggedInAt)) return true;
+  return now - loggedInAt >= PRIVILEGE_MAX_AGE_MS;
+}
+
+/**
  * ログインユーザーが指定ギルドの特権ユーザー（オーナー / ADMINISTRATOR / MANAGE_GUILD）かどうか。
- * 所属していないギルドは false。権限はログイン時点の情報で、再ログインするまで更新されない。
+ * 所属していないギルドは false。権限はログイン時点の情報で、
+ * loggedInAt から PRIVILEGE_MAX_AGE_MS を過ぎると特権なし（false）になる。
  */
 export function isPrivileged(
-  session: Pick<SessionData, "guilds">,
-  guildId: string
+  session: Pick<SessionData, "guilds" | "loggedInAt">,
+  guildId: string,
+  now: number = Date.now()
 ): boolean {
+  if (isPermissionStale(session, now)) return false;
   const guild = session.guilds?.find((g) => g.id === guildId);
   if (!guild) return false;
   if (guild.owner === true) return true;
@@ -32,19 +56,20 @@ export function isPrivileged(
 /**
  * 参加者・3T 報告の操作可否。
  * - 所属していないギルドのレイドは不可
- * - 特権ユーザーなら、終了済みレイドも含めて全員分を操作できる
+ * - 特権ユーザーなら、終了済みレイドも含めて全員分を操作できる（権限情報の期限切れなら一般メンバーと同じ扱い）
  * - 一般メンバーは本人分のみ、かつ終了済みレイドは不可
  *
  * session は必ずサーバー側のセッションを渡すこと（クライアントから送られた値で判定しない）。
  */
 export function canEditParticipant(
-  session: Pick<SessionData, "userId" | "guildIds" | "guilds">,
+  session: Pick<SessionData, "userId" | "guildIds" | "guilds" | "loggedInAt">,
   raid: Pick<RaidSummaryDto, "guildId" | "finishedAt">,
-  targetUserId: string
+  targetUserId: string,
+  now: number = Date.now()
 ): boolean {
   if (!session.userId) return false;
   if (!session.guildIds?.includes(raid.guildId)) return false;
-  if (isPrivileged(session, raid.guildId)) return true;
+  if (isPrivileged(session, raid.guildId, now)) return true;
   if (session.userId !== targetUserId) return false;
   return raid.finishedAt === null;
 }

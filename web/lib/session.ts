@@ -18,6 +18,13 @@ export interface SessionData {
   guilds?: GuildMetadata[];
   selectedGuildId?: string;
   state?: string;
+  /**
+   * guilds の owner / permissions を Discord から取得した時刻（UNIX エポックのミリ秒）。
+   * ログイン時（OAuth callback）にだけサーバー側で入れる。
+   * この値から PRIVILEGE_MAX_AGE_MS（lib/permissions.ts）を過ぎたら、特権ユーザーとして扱わない。
+   * この項目追加前のセッションには無く、その場合も特権なしとして扱う。
+   */
+  loggedInAt?: number;
 }
 
 export function getSessionOptions(): SessionOptions {

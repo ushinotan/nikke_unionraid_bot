@@ -1,12 +1,17 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert";
 import { requireRaidEditPermission, type RaidEditSession } from "../lib/raid-authorization";
+import { PRIVILEGE_MAX_AGE_MS } from "../lib/permissions";
 import type { RaidSummaryDto } from "../lib/api-types";
 
 const GUILD_ID = "111111111111111111";
 const OTHER_GUILD_ID = "222222222222222222";
 const SELF = "900000000000000001";
 const OTHER = "900000000000000002";
+/** テストの現在時刻（固定）。セッションの loggedInAt もこの時刻にする */
+const NOW = Date.UTC(2026, 10, 1);
+/** 有効期限を過ぎた時刻（ログインから 1 時間ちょうど） */
+const EXPIRED = NOW + PRIVILEGE_MAX_AGE_MS;
 
 function raid(overrides: Partial<RaidSummaryDto> = {}): RaidSummaryDto {
   return {
@@ -29,16 +34,19 @@ const general: RaidEditSession = {
   userId: SELF,
   guildIds: [GUILD_ID],
   guilds: [{ id: GUILD_ID, name: "Guild", owner: false, permissions: "0" }],
+  loggedInAt: NOW,
 };
 const privileged: RaidEditSession = {
   userId: SELF,
   guildIds: [GUILD_ID],
   guilds: [{ id: GUILD_ID, name: "Guild", owner: false, permissions: "8" }],
+  loggedInAt: NOW,
 };
 const outsider: RaidEditSession = {
   userId: SELF,
   guildIds: [OTHER_GUILD_ID],
   guilds: [{ id: OTHER_GUILD_ID, name: "Other", owner: true, permissions: "8" }],
+  loggedInAt: NOW,
 };
 
 describe("requireRaidEditPermission", () => {
@@ -73,10 +81,23 @@ describe("requireRaidEditPermission", () => {
   async function statusOf(
     session: RaidEditSession,
     requirement: Parameters<typeof requireRaidEditPermission>[2],
-    raidId = "1"
+    raidId = "1",
+    now = NOW
   ): Promise<number> {
-    const result = await requireRaidEditPermission(session, raidId, requirement);
+    const result = await requireRaidEditPermission(session, raidId, requirement, now);
     return result.ok ? 200 : result.response.status;
+  }
+
+  /** 拒否されたときのステータスと error コード（許可なら 200 と null） */
+  async function errorOf(
+    session: RaidEditSession,
+    requirement: Parameters<typeof requireRaidEditPermission>[2],
+    now = NOW
+  ): Promise<{ status: number; error: string | null }> {
+    const result = await requireRaidEditPermission(session, "1", requirement, now);
+    if (result.ok) return { status: 200, error: null };
+    const body = (await result.response.json()) as { error: string };
+    return { status: result.response.status, error: body.error };
   }
 
   describe("共通", () => {
@@ -102,7 +123,7 @@ describe("requireRaidEditPermission", () => {
     });
 
     it("許可されたらセッションの userId とレイドを返す", async () => {
-      const result = await requireRaidEditPermission(privileged, "1", { kind: "privileged" });
+      const result = await requireRaidEditPermission(privileged, "1", { kind: "privileged" }, NOW);
       assert.ok(result.ok);
       assert.strictEqual(result.userId, SELF);
       assert.strictEqual(result.raid.guildId, GUILD_ID);
@@ -160,6 +181,59 @@ describe("requireRaidEditPermission", () => {
 
     it("所属していないギルドのユーザーは本人分でも 403", async () => {
       assert.strictEqual(await statusOf(outsider, { kind: "participant", targetUserId: SELF }), 403);
+    });
+  });
+
+  describe("権限情報の有効期限", () => {
+    it("期限切れの特権ユーザーが特権操作をすると 403 で error が REAUTH_REQUIRED", async () => {
+      assert.deepStrictEqual(await errorOf(privileged, { kind: "privileged" }, EXPIRED), {
+        status: 403,
+        error: "REAUTH_REQUIRED",
+      });
+    });
+
+    it("期限切れの特権ユーザーが他人の参加者を操作すると 403 で error が REAUTH_REQUIRED", async () => {
+      assert.deepStrictEqual(
+        await errorOf(privileged, { kind: "participant", targetUserId: OTHER }, EXPIRED),
+        { status: 403, error: "REAUTH_REQUIRED" }
+      );
+    });
+
+    it("loggedInAt が無い特権ユーザーが特権操作をすると 403 で error が REAUTH_REQUIRED", async () => {
+      const legacy: RaidEditSession = { ...privileged, loggedInAt: undefined };
+      assert.deepStrictEqual(await errorOf(legacy, { kind: "privileged" }), {
+        status: 403,
+        error: "REAUTH_REQUIRED",
+      });
+    });
+
+    it("期限切れでも本人の進行中レイドの操作は 200", async () => {
+      assert.strictEqual(
+        await statusOf(general, { kind: "participant", targetUserId: SELF }, "1", EXPIRED),
+        200
+      );
+    });
+
+    it("期限内の一般メンバーが特権操作をすると 403 で error が FORBIDDEN", async () => {
+      assert.deepStrictEqual(await errorOf(general, { kind: "privileged" }), {
+        status: 403,
+        error: "FORBIDDEN",
+      });
+    });
+
+    it("期限切れの一般メンバーが終了済みレイドの本人分を操作すると 403 で error が FORBIDDEN", async () => {
+      backendRaid = raid({ finishedAt: "2026-11-02T00:00:00Z" });
+      assert.deepStrictEqual(
+        await errorOf(general, { kind: "participant", targetUserId: SELF }, EXPIRED),
+        { status: 403, error: "FORBIDDEN" }
+      );
+    });
+
+    it("期限切れでも所属していないギルドのレイドは 403 で error が FORBIDDEN", async () => {
+      assert.deepStrictEqual(await errorOf(outsider, { kind: "privileged" }, EXPIRED), {
+        status: 403,
+        error: "FORBIDDEN",
+      });
     });
   });
 });

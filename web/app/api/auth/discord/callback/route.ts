@@ -155,6 +155,8 @@ export async function GET(request: NextRequest) {
     session.userId = user.id;
     session.guildIds = intersectedGuildIds;
     session.guilds = intersectedGuilds;
+    // 権限情報（owner / permissions）を取得した時刻。特権判定の有効期限に使う
+    session.loggedInAt = Date.now();
 
     if (
       session.selectedGuildId &&
