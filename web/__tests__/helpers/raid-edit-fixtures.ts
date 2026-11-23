@@ -1,10 +1,15 @@
 import type { RaidEditSession } from "../../lib/raid-authorization";
 import type { RaidSummaryDto } from "../../lib/api-types";
+import { PRIVILEGE_MAX_AGE_MS } from "../../lib/permissions";
 
 export const GUILD_ID = "111111111111111111";
 export const OTHER_GUILD_ID = "222222222222222222";
 export const SELF = "900000000000000001";
 export const OTHER = "900000000000000002";
+/** テストの現在時刻（固定）。各ペルソナの loggedInAt もこの時刻にする */
+export const NOW = Date.UTC(2026, 10, 1);
+/** 権限情報の有効期限を過ぎた時刻（ログインから 1 日ちょうど） */
+export const EXPIRED = NOW + PRIVILEGE_MAX_AGE_MS;
 
 export function raid(overrides: Partial<RaidSummaryDto> = {}): RaidSummaryDto {
   return {
@@ -28,6 +33,7 @@ export const selfMember: RaidEditSession = {
   userId: SELF,
   guildIds: [GUILD_ID],
   guilds: [{ id: GUILD_ID, name: "Guild", owner: false, permissions: "0" }],
+  loggedInAt: NOW,
 };
 
 /** 特権（管理者権限）ユーザー */
@@ -35,6 +41,7 @@ export const privilegedMember: RaidEditSession = {
   userId: SELF,
   guildIds: [GUILD_ID],
   guilds: [{ id: GUILD_ID, name: "Guild", owner: false, permissions: "8" }],
+  loggedInAt: NOW,
 };
 
 /** ギルドオーナー */
@@ -42,6 +49,7 @@ export const ownerMember: RaidEditSession = {
   userId: SELF,
   guildIds: [GUILD_ID],
   guilds: [{ id: GUILD_ID, name: "Guild", owner: true, permissions: "0" }],
+  loggedInAt: NOW,
 };
 
 /** 別ギルドのオーナー（対象レイドのギルドには所属していない） */
@@ -49,6 +57,7 @@ export const outsider: RaidEditSession = {
   userId: SELF,
   guildIds: [OTHER_GUILD_ID],
   guilds: [{ id: OTHER_GUILD_ID, name: "Other", owner: true, permissions: "8" }],
+  loggedInAt: NOW,
 };
 
 export type RecordedCall = { url: string; method: string; body: unknown };

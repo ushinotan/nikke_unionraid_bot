@@ -5,7 +5,11 @@ import {
   handleBackendError,
   validateNumericId,
 } from "@/lib/backend-client";
-import { canEditParticipant, isPrivileged } from "@/lib/permissions";
+import {
+  checkParticipantEdit,
+  checkPrivilege,
+  type PermissionCheck,
+} from "@/lib/permissions";
 import type { SessionData } from "@/lib/session";
 
 /**
@@ -24,7 +28,10 @@ export type RaidEditRequirement =
   | { kind: "privileged" }
   | { kind: "participant"; targetUserId: string };
 
-export type RaidEditSession = Pick<SessionData, "userId" | "guildIds" | "guilds">;
+export type RaidEditSession = Pick<
+  SessionData,
+  "userId" | "guildIds" | "guilds" | "loggedInAt"
+>;
 
 function unauthorized(): NextResponse {
   return NextResponse.json(
@@ -38,16 +45,34 @@ function forbidden(message: string): NextResponse {
 }
 
 /**
+ * 権限情報（owner / permissions）が古いため特権として扱えないときの 403。
+ * ログイン自体は有効なので 401 ではなく 403 にし、error で再ログインが必要なことを区別する。
+ */
+function reauthRequired(): NextResponse {
+  return NextResponse.json(
+    {
+      error: "REAUTH_REQUIRED",
+      message: "Permission information is outdated. Please log in again",
+    },
+    { status: 403 }
+  );
+}
+
+/**
  * セッションとレイドから、編集操作を許可するか判定する。
  * 許可するなら null、拒否するならそのまま返せるエラーレスポンスを返す。
  *
  * raid はバックエンドから取得したものを渡すこと。ギルド ID などクライアントから
  * 送られた値で判定してはいけない。
+ *
+ * 拒否の理由が stale（権限情報が古い）なら、再ログインで解決する可能性があるので REAUTH_REQUIRED、
+ * denied なら FORBIDDEN を返す。理由は checkPrivilege / checkParticipantEdit の結果をそのまま使う。
  */
 export function authorizeRaidEdit(
   session: RaidEditSession,
   raid: Pick<RaidSummaryDto, "guildId" | "finishedAt">,
-  requirement: RaidEditRequirement
+  requirement: RaidEditRequirement,
+  now: number = Date.now()
 ): NextResponse | null {
   if (!session.userId) return unauthorized();
 
@@ -56,14 +81,30 @@ export function authorizeRaidEdit(
   }
 
   if (requirement.kind === "privileged") {
-    return isPrivileged(session, raid.guildId)
-      ? null
-      : forbidden("Privileged permission is required");
+    return toResponse(
+      checkPrivilege(session, raid.guildId, now),
+      "Privileged permission is required"
+    );
   }
 
-  return canEditParticipant(session, raid, requirement.targetUserId)
-    ? null
-    : forbidden("Not allowed to edit this participant");
+  return toResponse(
+    checkParticipantEdit(session, raid, requirement.targetUserId, now),
+    "Not allowed to edit this participant"
+  );
+}
+
+function toResponse(
+  check: PermissionCheck,
+  forbiddenMessage: string
+): NextResponse | null {
+  switch (check) {
+    case "allowed":
+      return null;
+    case "stale":
+      return reauthRequired();
+    case "denied":
+      return forbidden(forbiddenMessage);
+  }
 }
 
 export type RaidEditAuthorizationResult =
@@ -79,6 +120,7 @@ export type RaidEditAuthorizationResult =
  * 1. 未ログインなら 401
  * 2. raidId の形式が不正なら 400
  * 3. バックエンドからレイドを取得し、そのギルド ID でメンバーシップ・権限を判定（不可なら 403）
+ *    権限情報が古く特権として扱えないときは、403 で error が REAUTH_REQUIRED
  *
  * @example
  * const session = await getSession();
@@ -89,7 +131,8 @@ export type RaidEditAuthorizationResult =
 export async function requireRaidEditPermission(
   session: RaidEditSession,
   raidId: string,
-  requirement: RaidEditRequirement
+  requirement: RaidEditRequirement,
+  now: number = Date.now()
 ): Promise<RaidEditAuthorizationResult> {
   if (!session.userId) return { ok: false, response: unauthorized() };
 
@@ -114,7 +157,7 @@ export async function requireRaidEditPermission(
     return { ok: false, response: handleBackendError(error) };
   }
 
-  const denied = authorizeRaidEdit(session, raid, requirement);
+  const denied = authorizeRaidEdit(session, raid, requirement, now);
   if (denied) return { ok: false, response: denied };
 
   return { ok: true, userId: session.userId, raid };
