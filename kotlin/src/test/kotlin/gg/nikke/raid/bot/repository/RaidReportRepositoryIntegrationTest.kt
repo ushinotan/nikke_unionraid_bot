@@ -193,6 +193,20 @@ open class RaidReportRepositoryIntegrationTest(
         assertNotNull(raidReportRepository.findRaidReport(raid.id, 50_000_107L, "normal"))
     }
 
+    @Test
+    fun `ユーザーの報告を全削除_両難易度が消え他ユーザーの行は残り件数を返す`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaid(70_092_011L, now)
+        saveReport(raid.id, 92_000_011L, "normal", now)
+        saveReport(raid.id, 92_000_011L, "hard", now)
+        saveReport(raid.id, 92_000_012L, "normal", now)
+        val deleted = raidReportRepository.deleteRaidReportsByRaidIdAndUserId(raid.id, 92_000_011L)
+
+        assertEquals(2L, deleted)
+        assertTrue(raidReportRepository.findAllRaidReportsByRaidId(raid.id).all { it.userId == 92_000_012L })
+        assertEquals(0L, raidReportRepository.deleteRaidReportsByRaidIdAndUserId(raid.id, 92_000_011L))
+    }
+
     private fun saveReport(raidId: Int, userId: Long, difficulty: String, now: OffsetDateTime) {
         raidReportRepository.saveRaidReport(
             RaidReport(

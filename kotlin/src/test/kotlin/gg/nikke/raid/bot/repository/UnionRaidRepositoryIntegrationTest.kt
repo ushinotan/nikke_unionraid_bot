@@ -362,6 +362,15 @@ open class UnionRaidRepositoryIntegrationTest(
         assertEquals(222L, found?.notifyMessageId)
     }
 
+    @Test
+    fun `ロック付き取得_あればレイドを返し無ければnullを返す`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaidWithNotify(70_092_021L, now)
+
+        assertEquals(raid.id, unionRaidRepository.findUnionRaidByIdForUpdate(raid.id)?.id)
+        assertNull(unionRaidRepository.findUnionRaidByIdForUpdate(Int.MAX_VALUE))
+    }
+
     private fun createRaidWithNotify(guildId: Long, now: OffsetDateTime): UnionRaid {
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
         return unionRaidRepository.insertUnionRaid(

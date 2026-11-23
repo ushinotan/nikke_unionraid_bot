@@ -140,6 +140,58 @@ open class RaidParticipantRepositoryIntegrationTest(
         assertEquals(now.toInstant(), participant.joinedAt?.toInstant())
     }
 
+    @Test
+    fun `参加者の条件付き登録_新規は1を返しスコア0と渡したjoinedAtで登録される`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaid(70_092_001L, now)
+
+        val inserted = raidParticipantRepository.insertParticipantIfAbsent(
+            RaidParticipant(raidId = raid.id, userId = 92_000_001L, username = "new-user", score = 0, joinedAt = now)
+        )
+
+        assertEquals(1L, inserted)
+        val participant = raidParticipantRepository.findParticipantsByRaidId(raid.id).single()
+        assertEquals("new-user", participant.username)
+        assertEquals(0, participant.score)
+        assertEquals(
+            now.toInstant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS),
+            participant.joinedAt?.toInstant()?.truncatedTo(java.time.temporal.ChronoUnit.MILLIS),
+        )
+    }
+
+    @Test
+    fun `参加者の条件付き登録_既存の参加者がいると0を返しユーザー名とスコアは変わらない`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaid(70_092_002L, now)
+        insertParticipant(raid.id, 92_000_002L, "manual", 1234, now)
+
+        val inserted = raidParticipantRepository.insertParticipantIfAbsent(
+            RaidParticipant(raidId = raid.id, userId = 92_000_002L, username = "auto", score = 0, joinedAt = now.plusHours(1))
+        )
+
+        assertEquals(0L, inserted)
+        val participant = raidParticipantRepository.findParticipantsByRaidId(raid.id).single()
+        assertEquals("manual", participant.username)
+        assertEquals(1234, participant.score)
+    }
+
+    @Test
+    fun `参加者の削除_対象のユーザーだけ消え他ユーザーと他レイドの同じユーザーは残る`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaid(70_092_003L, now)
+        val otherRaid = createRaid(70_092_004L, now)
+        insertParticipant(raid.id, 92_000_003L, "target", 100, now)
+        insertParticipant(raid.id, 92_000_004L, "other", 200, now)
+        insertParticipant(otherRaid.id, 92_000_003L, "target-other-raid", 300, now)
+
+        val deleted = raidParticipantRepository.deleteParticipant(raid.id, 92_000_003L)
+
+        assertEquals(1L, deleted)
+        assertEquals(listOf(92_000_004L), raidParticipantRepository.findParticipantsByRaidId(raid.id).map { it.userId })
+        assertEquals(1, raidParticipantRepository.findParticipantsByRaidId(otherRaid.id).size)
+        assertEquals(0L, raidParticipantRepository.deleteParticipant(raid.id, 92_000_003L))
+    }
+
     private fun createRaid(guildId: Long, now: OffsetDateTime): UnionRaid {
         guildRepository.insertGuild(
             Guild(

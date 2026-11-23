@@ -44,8 +44,11 @@ class RaidParticipantRepository(
      *
      * @param participant 登録または更新する `RaidParticipant` オブジェクト
      * @return 挿入または更新された行数
+     *
+     * **レイド行のロックを取ったトランザクションの中で呼ぶこと**（`RaidDomainService` 経由）。外から呼ぶと `IllegalStateException`。
      */
     fun insertOrUpdateParticipant(participant: RaidParticipant): Long {
+        requireActiveTransaction("insertOrUpdateParticipant")
         val query = QueryDsl.insert(raidParticipantTable)
             .onDuplicateKeyUpdate(raidParticipantTable.raidId, raidParticipantTable.userId) {
                 raidParticipantTable.username eq participant.username
@@ -53,6 +56,44 @@ class RaidParticipantRepository(
                 // joined_at は更新しない（最初の参加時刻を保持）
             }
             .single(participant)
+
+        return database.runQuery(query)
+    }
+
+    /**
+     * レイド参加者を登録する。既に同じレイド ID とユーザー ID の参加者が存在する場合は何も変更しない
+     * （`ON CONFLICT (raid_id, user_id) DO NOTHING`）。既存の `username`・`score`・`joined_at` は上書きしない。
+     *
+     * @param participant 登録する `RaidParticipant`。`joinedAt` には登録時刻を渡すこと
+     * @return 挿入された行数（新規なら 1、既に存在して何もしなかったなら 0）
+     *
+     * **レイド行のロックを取ったトランザクションの中で呼ぶこと**（`RaidDomainService` 経由）。外から呼ぶと `IllegalStateException`。
+     */
+    fun insertParticipantIfAbsent(participant: RaidParticipant): Long {
+        requireActiveTransaction("insertParticipantIfAbsent")
+        val query = QueryDsl.insert(raidParticipantTable)
+            .onDuplicateKeyIgnore(raidParticipantTable.raidId, raidParticipantTable.userId)
+            .single(participant)
+
+        return database.runQuery(query)
+    }
+
+    /**
+     * 指定したレイド・ユーザーの参加者を削除する。
+     *
+     * @param raidId レイド ID
+     * @param userId ユーザー ID
+     * @return 削除された行数（参加者でなければ 0）
+     *
+     * **レイド行のロックを取ったトランザクションの中で呼ぶこと**（`RaidDomainService` 経由）。外から呼ぶと `IllegalStateException`。
+     */
+    fun deleteParticipant(raidId: Int, userId: Long): Long {
+        requireActiveTransaction("deleteParticipant")
+        val query = QueryDsl.delete(raidParticipantTable)
+            .where {
+                raidParticipantTable.raidId eq raidId
+                raidParticipantTable.userId eq userId
+            }
 
         return database.runQuery(query)
     }

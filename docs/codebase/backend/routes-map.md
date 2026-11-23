@@ -10,7 +10,7 @@
 | GET | `/api/guilds` | `InternalApiTokenFilter` | `GuildRepository.findAllGuilds` → `GuildsResponse` |
 | GET | `/api/guilds/{guildId}/raids` | 同上 | `UnionRaidRepository.findUnionRaidsByGuildId` → `RaidsResponse` |
 | GET | `/api/guilds/{guildId}/members?query=&limit=` | 同上 | `GuildMemberService.findGuildMembers` → `GuildMembersResponse`（`members[].userId` は文字列、`truncated`。query ≤100 文字は trim 前に検査、limit 1〜100 既定 100。400 / 404 `GuildNotFound` / 503 `GuildMembersUnavailable` / 500） |
-| GET | `/api/raids/{raidId}` | 同上 | レイド + 参加者 + 3凸報告 → `RaidDetailResponse`（無ければ 404） |
+| GET | `/api/raids/{raidId}` | 同上 | レイド + 参加者（3凸報告で自動参加した者を含む）+ 3凸報告 → `RaidDetailResponse`（無ければ 404） |
 
 - パスの型が合わないと 400、その他の例外は 500（`ErrorResponse`）。
 - 書き込み系 API はまだ無い（順位・パーセンテージ、参加者・3T 報告の更新 API は Issue #105 / #96 で予定）。

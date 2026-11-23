@@ -1,11 +1,15 @@
 package gg.nikke.raid.bot.service
 
+import gg.nikke.raid.bot.entity.RaidParticipant
 import gg.nikke.raid.bot.entity.RaidReport
 import gg.nikke.raid.bot.entity.UnionRaid
+import gg.nikke.raid.bot.repository.RaidParticipantRepository
 import gg.nikke.raid.bot.repository.RaidReportRepository
 import gg.nikke.raid.bot.repository.UnionRaidRepository
 import gg.nikke.raid.bot.util.TimeUtils
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.BigDecimal
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -20,6 +24,7 @@ import java.time.OffsetDateTime
 class RaidDomainService(
     private val unionRaidRepository: UnionRaidRepository,
     private val raidReportRepository: RaidReportRepository,
+    private val raidParticipantRepository: RaidParticipantRepository,
 ) {
 
     companion object {
@@ -78,6 +83,9 @@ class RaidDomainService(
      * @param percentage 終了時の上位パーセンテージ（任意）。0より大きく100以下。rankingと同時指定不可
      * @param now 現在時刻（デフォルト値はUTC現在時刻）
      * @return 更新されたレコード数を成功値として返却。失敗時はエラーを含むResultオブジェクトを返却
+     *
+     * 単一の UPDATE 文のみなのでレイド行のロックは取らない。ここに参加者・報告の更新を足すときは、
+     * 先に `lockRaid` でレイド行をロックし、`union_raids` → `raid_reports` → `raid_participants` の順を守ること。
      */
     fun finishRaid(
         raidId: Int,
@@ -102,32 +110,53 @@ class RaidDomainService(
     }
 
     /**
-     * ユーザーが3ターン撃破を報告したことを記録します。
+     * ユーザーが3ターン撃破を報告したことを記録し、まだ参加者でなければスコア 0 で参加者に自動登録します。
+     *
+     * レイド行をロックしたトランザクションの中で、報告の保存と参加者の登録を行います。
+     * 既に参加者（手動登録など）の場合は `username`・`score`・`joined_at` を変更しません。
+     * 参加者・報告への書き込みは、必ずこのサービスでレイド行をロックしてから行うこと。
      *
      * @param raidId レイドのID
      * @param userId ユーザーのID
-     * @param username ユーザー名
+     * @param username ユーザー名（参加者の自動登録にも使う）
      * @param difficulty 難易度
      * @param now 報告の時刻（デフォルトは現在のUTC時刻）
-     * @return 保存された報告のIDを含む `Result` オブジェクト。レイドが存在しない場合は `RaidNotFound`、終了済みの場合は `RaidAlreadyFinished`
+     * @return 報告結果を含む `Result`。レイドが存在しない場合は `RaidNotFound`、終了済みの場合は `RaidAlreadyFinished`
+     * @throws IllegalStateException トランザクションの外で呼ばれた場合
      */
+    @Transactional(rollbackFor = [Exception::class])
     fun reportThreeTurn(
         raidId: Int,
         userId: Long,
         username: String,
         difficulty: Difficulty,
         now: OffsetDateTime = TimeUtils.utcNow(),
-    ): Result<Long> {
-        ensureRaidActive(raidId).onFailure { return Result.failure(it) }
+    ): Result<ThreeTurnReportResult> {
+        lockActiveRaid(raidId).onFailure { return Result.failure(it) }
 
-        val report = RaidReport(
-            raidId = raidId,
-            userId = userId,
-            username = username,
-            difficulty = difficulty.value,
-            reportedAt = now,
+        val alreadyReported = raidReportRepository.findRaidReport(raidId, userId, difficulty.value) != null
+
+        raidReportRepository.saveRaidReport(
+            RaidReport(
+                raidId = raidId,
+                userId = userId,
+                username = username,
+                difficulty = difficulty.value,
+                reportedAt = now,
+            )
         )
-        return Result.success(raidReportRepository.saveRaidReport(report))
+
+        val participantRegistered = raidParticipantRepository.insertParticipantIfAbsent(
+            RaidParticipant(
+                raidId = raidId,
+                userId = userId,
+                username = username,
+                score = 0,
+                joinedAt = now,
+            )
+        ) == 1L
+
+        return Result.success(ThreeTurnReportResult(alreadyReported, participantRegistered))
     }
 
     /**
@@ -173,30 +202,83 @@ class RaidDomainService(
     /**
      * ユーザー自身の3凸報告を、指定した難易度分だけ取り消します。
      * 指定していない難易度の報告は残ります。終了済みのレイドは取り消せません。
+     * 取り消しの結果、3凸報告が 0 件になった場合は参加者も削除します（手動登録・入力済みスコアも消えます）。
+     * 何も取り消さなかった場合は参加者を削除しません。
      *
      * @param raidId レイドのID
      * @param userId 取り消すユーザーのID（本人の報告のみ対象）
      * @param difficulties 取り消す難易度。空の場合は `NoDifficultySelected`
-     * @return 実際に取り消された難易度の集合を含む `Result`。未報告の難易度だけを指定した場合は空
+     * @return 取り消し結果を含む `Result`。レイドが存在しない場合は `RaidNotFound`、終了済みの場合は `RaidAlreadyFinished`
+     * @throws IllegalStateException トランザクションの外で呼ばれた場合
      */
+    @Transactional(rollbackFor = [Exception::class])
     fun cancelThreeTurnReports(
         raidId: Int,
         userId: Long,
         difficulties: Set<Difficulty>,
-    ): Result<Set<Difficulty>> {
+    ): Result<ThreeTurnCancelResult> {
         if (difficulties.isEmpty()) {
             return Result.failure(RaidDomainError.NoDifficultySelected)
         }
-        ensureRaidActive(raidId).onFailure { return Result.failure(it) }
+        lockActiveRaid(raidId).onFailure { return Result.failure(it) }
 
         // 別のメニューで先に取り消された場合などに備え、実際に報告済みの難易度だけを対象にする
         val targets = findReportedDifficulties(raidId, userId).filter { it in difficulties }.toSet()
         if (targets.isEmpty()) {
-            return Result.success(emptySet())
+            return Result.success(ThreeTurnCancelResult(emptySet(), participantRemoved = false))
         }
 
         raidReportRepository.deleteRaidReports(raidId, userId, targets.map { it.value })
-        return Result.success(targets)
+
+        val remaining = raidReportRepository.findRaidReportsByRaidIdAndUserId(raidId, userId)
+        val participantRemoved = remaining.isEmpty() &&
+            raidParticipantRepository.deleteParticipant(raidId, userId) > 0L
+
+        return Result.success(ThreeTurnCancelResult(targets, participantRemoved))
+    }
+
+    /**
+     * ユーザーの参加を取り消し、参加者の行とそのユーザーの3凸報告（全難易度）をまとめて削除します。
+     *
+     * 終了済みレイドかどうかは判定しません。終了済みレイドを操作してよいか（特権ユーザーのみ可など）と、
+     * 操作者が本人か特権ユーザーかの確認は、呼び出し側（Web の BFF など）が必ず行うこと。
+     * 参加者でも報告者でもない場合も成功（両方 0）を返します（冪等）。
+     *
+     * @param raidId レイドのID
+     * @param userId 参加を取り消すユーザーのID
+     * @return 削除結果を含む `Result`。レイドが存在しない場合は `RaidNotFound`
+     * @throws IllegalStateException トランザクションの外で呼ばれた場合
+     */
+    @Transactional(rollbackFor = [Exception::class])
+    fun cancelParticipation(raidId: Int, userId: Long): Result<ParticipationCancelResult> {
+        lockRaid(raidId).onFailure { return Result.failure(it) }
+
+        val removedReportCount = raidReportRepository.deleteRaidReportsByRaidIdAndUserId(raidId, userId)
+        val participantRemoved = raidParticipantRepository.deleteParticipant(raidId, userId) > 0L
+
+        return Result.success(ParticipationCancelResult(participantRemoved, removedReportCount))
+    }
+
+    /**
+     * レイド行をロックして返す。無ければ `RaidNotFound`。
+     * トランザクションの外ではロックが文の終わりで外れ整合性を守れないため、書き込む前に止める。
+     */
+    private fun lockRaid(raidId: Int): Result<UnionRaid> {
+        check(TransactionSynchronizationManager.isActualTransactionActive()) {
+            "参加者・報告の更新はトランザクション内で呼ぶ必要がある"
+        }
+        val raid = unionRaidRepository.findUnionRaidByIdForUpdate(raidId)
+            ?: return Result.failure(RaidDomainError.RaidNotFound)
+        return Result.success(raid)
+    }
+
+    /** [lockRaid] に加えて、終了済みなら `RaidAlreadyFinished` を返す。 */
+    private fun lockActiveRaid(raidId: Int): Result<UnionRaid> {
+        val raid = lockRaid(raidId).getOrElse { return Result.failure(it) }
+        if (raid.finishedAt != null) {
+            return Result.failure(RaidDomainError.RaidAlreadyFinished)
+        }
+        return Result.success(raid)
     }
 
     /**

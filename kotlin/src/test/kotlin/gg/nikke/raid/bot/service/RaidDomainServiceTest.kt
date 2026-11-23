@@ -1,7 +1,11 @@
 package gg.nikke.raid.bot.service
 
 import gg.nikke.raid.bot.entity.Guild
+import gg.nikke.raid.bot.entity.RaidParticipant
+import gg.nikke.raid.bot.entity.RaidReport
 import gg.nikke.raid.bot.repository.GuildRepository
+import gg.nikke.raid.bot.repository.RaidParticipantRepository
+import gg.nikke.raid.bot.repository.RaidReportRepository
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
@@ -16,6 +20,8 @@ import java.time.OffsetDateTime
 open class RaidDomainServiceTest(
     private val raidDomainService: RaidDomainService,
     private val guildRepository: GuildRepository,
+    private val raidParticipantRepository: RaidParticipantRepository,
+    private val raidReportRepository: RaidReportRepository,
 ) {
 
     // ----------------------------------------------------------------
@@ -280,6 +286,7 @@ open class RaidDomainServiceTest(
         assertTrue(result.isFailure)
         assertInstanceOf(RaidDomainError.RaidAlreadyFinished::class.java, result.exceptionOrNull())
         assertFalse(raidDomainService.hasReported(raid.id, 90_000_116L, Difficulty.NORMAL))
+        assertTrue(raidParticipantRepository.findParticipantsByRaidId(raid.id).isEmpty())
     }
 
     // ----------------------------------------------------------------
@@ -348,7 +355,7 @@ open class RaidDomainServiceTest(
         val result = raidDomainService.cancelThreeTurnReports(raid.id, 90_000_106L, setOf(Difficulty.NORMAL))
 
         assertTrue(result.isSuccess)
-        assertEquals(setOf(Difficulty.NORMAL), result.getOrThrow())
+        assertEquals(setOf(Difficulty.NORMAL), result.getOrThrow().cancelled)
         val aggregation = raidDomainService.aggregateRaidResults(raid.id)
         assertEquals(0, aggregation.normalUsers.size)
         assertEquals(listOf("user"), aggregation.hardUsers)
@@ -364,7 +371,7 @@ open class RaidDomainServiceTest(
             raid.id, 90_000_107L, setOf(Difficulty.NORMAL, Difficulty.HARD),
         )
 
-        assertEquals(setOf(Difficulty.NORMAL, Difficulty.HARD), result.getOrThrow())
+        assertEquals(setOf(Difficulty.NORMAL, Difficulty.HARD), result.getOrThrow().cancelled)
         assertTrue(raidDomainService.findReportedDifficulties(raid.id, 90_000_107L).isEmpty())
     }
 
@@ -387,7 +394,7 @@ open class RaidDomainServiceTest(
         val result = raidDomainService.cancelThreeTurnReports(raid.id, 90_000_110L, setOf(Difficulty.HARD))
 
         assertTrue(result.isSuccess)
-        assertTrue(result.getOrThrow().isEmpty())
+        assertTrue(result.getOrThrow().cancelled.isEmpty())
         assertTrue(raidDomainService.hasReported(raid.id, 90_000_110L, Difficulty.NORMAL))
     }
 
@@ -403,7 +410,7 @@ open class RaidDomainServiceTest(
             raid.id, 90_000_114L, setOf(Difficulty.NORMAL, Difficulty.HARD),
         )
 
-        assertEquals(setOf(Difficulty.HARD), result.getOrThrow())
+        assertEquals(setOf(Difficulty.HARD), result.getOrThrow().cancelled)
         assertTrue(raidDomainService.findReportedDifficulties(raid.id, 90_000_114L).isEmpty())
     }
 
@@ -440,6 +447,217 @@ open class RaidDomainServiceTest(
         assertTrue(result.isFailure)
         assertInstanceOf(RaidDomainError.RaidAlreadyFinished::class.java, result.exceptionOrNull())
         assertTrue(raidDomainService.hasReported(raid.id, 90_000_113L, Difficulty.NORMAL))
+    }
+
+    // ----------------------------------------------------------------
+    // reportThreeTurn（参加者連動）
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `3凸報告_未参加なら参加者にスコア0と報告者名で登録される`() {
+        val raid = createActiveRaid(70_092_101L)
+        val now = OffsetDateTime.now()
+
+        val result = raidDomainService.reportThreeTurn(raid.id, 92_100_001L, "reporter", Difficulty.NORMAL, now)
+
+        assertTrue(result.getOrThrow().participantRegistered)
+        assertFalse(result.getOrThrow().alreadyReported)
+        val participant = raidParticipantRepository.findParticipantsByRaidId(raid.id).single()
+        assertEquals(92_100_001L, participant.userId)
+        assertEquals("reporter", participant.username)
+        assertEquals(0, participant.score)
+        assertEquals(now.toInstant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS), participant.joinedAt?.toInstant()?.truncatedTo(java.time.temporal.ChronoUnit.MILLIS))
+    }
+
+    @Test
+    fun `3凸報告_手動登録済みの参加者はユーザー名とスコアが上書きされない`() {
+        val raid = createActiveRaid(70_092_102L)
+        raidParticipantRepository.insertOrUpdateParticipant(
+            RaidParticipant(raidId = raid.id, userId = 92_100_002L, username = "manual", score = 1234, joinedAt = OffsetDateTime.now())
+        )
+
+        val result = raidDomainService.reportThreeTurn(raid.id, 92_100_002L, "reporter", Difficulty.NORMAL)
+
+        assertFalse(result.getOrThrow().participantRegistered)
+        val participant = raidParticipantRepository.findParticipantsByRaidId(raid.id).single()
+        assertEquals("manual", participant.username)
+        assertEquals(1234, participant.score)
+    }
+
+    @Test
+    fun `3凸報告_同じ難易度の再報告はalreadyReportedがtrueになる`() {
+        val raid = createActiveRaid(70_092_103L)
+        val first = raidDomainService.reportThreeTurn(raid.id, 92_100_003L, "user", Difficulty.HARD).getOrThrow()
+        val second = raidDomainService.reportThreeTurn(raid.id, 92_100_003L, "user", Difficulty.HARD).getOrThrow()
+
+        assertFalse(first.alreadyReported)
+        assertTrue(second.alreadyReported)
+        assertFalse(second.participantRegistered)
+    }
+
+    @Test
+    fun `3凸報告_2つ目の難易度でも参加者は1行のまま`() {
+        val raid = createActiveRaid(70_092_104L)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_004L, "user", Difficulty.NORMAL)
+        val second = raidDomainService.reportThreeTurn(raid.id, 92_100_004L, "user", Difficulty.HARD).getOrThrow()
+
+        assertFalse(second.participantRegistered)
+        assertEquals(1, raidParticipantRepository.findParticipantsByRaidId(raid.id).size)
+    }
+
+    // ----------------------------------------------------------------
+    // cancelThreeTurnReports（参加者連動）
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `報告取り消し_最後の報告を取り消すと参加者も削除される`() {
+        val raid = createActiveRaid(70_092_111L)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_011L, "user", Difficulty.NORMAL)
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 92_100_011L, setOf(Difficulty.NORMAL)).getOrThrow()
+
+        assertTrue(result.participantRemoved)
+        assertTrue(raidParticipantRepository.findParticipantsByRaidId(raid.id).isEmpty())
+    }
+
+    @Test
+    fun `報告取り消し_報告が残っていれば参加者は残る`() {
+        val raid = createActiveRaid(70_092_112L)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_012L, "user", Difficulty.NORMAL)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_012L, "user", Difficulty.HARD)
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 92_100_012L, setOf(Difficulty.NORMAL)).getOrThrow()
+
+        assertFalse(result.participantRemoved)
+        assertEquals(1, raidParticipantRepository.findParticipantsByRaidId(raid.id).size)
+    }
+
+    @Test
+    fun `報告取り消し_手動登録でスコア入力済みでも報告0件で参加者が削除される`() {
+        val raid = createActiveRaid(70_092_113L)
+        raidParticipantRepository.insertOrUpdateParticipant(
+            RaidParticipant(raidId = raid.id, userId = 92_100_013L, username = "manual", score = 5000, joinedAt = OffsetDateTime.now())
+        )
+        raidDomainService.reportThreeTurn(raid.id, 92_100_013L, "user", Difficulty.NORMAL)
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 92_100_013L, setOf(Difficulty.NORMAL)).getOrThrow()
+
+        assertTrue(result.participantRemoved)
+        assertTrue(raidParticipantRepository.findParticipantsByRaidId(raid.id).isEmpty())
+    }
+
+    @Test
+    fun `報告取り消し_未報告の難易度だけを指定すると報告なしの手動登録者は削除されない`() {
+        val raid = createActiveRaid(70_092_114L)
+        raidParticipantRepository.insertOrUpdateParticipant(
+            RaidParticipant(raidId = raid.id, userId = 92_100_014L, username = "manual", score = 100, joinedAt = OffsetDateTime.now())
+        )
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 92_100_014L, setOf(Difficulty.HARD)).getOrThrow()
+
+        assertTrue(result.cancelled.isEmpty())
+        assertFalse(result.participantRemoved)
+        assertEquals(1, raidParticipantRepository.findParticipantsByRaidId(raid.id).size)
+    }
+
+    @Test
+    fun `報告取り消し_参加者の行が無い既存の報告でも取り消せる`() {
+        val raid = createActiveRaid(70_092_115L)
+        raidReportRepository.saveRaidReport(
+            RaidReport(raidId = raid.id, userId = 92_100_015L, username = "legacy", difficulty = Difficulty.NORMAL.value, reportedAt = OffsetDateTime.now())
+        )
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 92_100_015L, setOf(Difficulty.NORMAL)).getOrThrow()
+
+        assertEquals(setOf(Difficulty.NORMAL), result.cancelled)
+        assertFalse(result.participantRemoved)
+        assertTrue(raidDomainService.findReportedDifficulties(raid.id, 92_100_015L).isEmpty())
+    }
+
+    @Test
+    fun `報告取り消し_終了済みレイドは参加者も報告も残る`() {
+        val raid = createActiveRaid(70_092_116L)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_016L, "user", Difficulty.NORMAL)
+        raidDomainService.finishRaid(raidId = raid.id)
+
+        val result = raidDomainService.cancelThreeTurnReports(raid.id, 92_100_016L, setOf(Difficulty.NORMAL))
+
+        assertInstanceOf(RaidDomainError.RaidAlreadyFinished::class.java, result.exceptionOrNull())
+        assertEquals(1, raidParticipantRepository.findParticipantsByRaidId(raid.id).size)
+        assertTrue(raidDomainService.hasReported(raid.id, 92_100_016L, Difficulty.NORMAL))
+    }
+
+    // ----------------------------------------------------------------
+    // cancelParticipation
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `参加取り消し_参加者と全難易度の報告がまとめて削除される`() {
+        val raid = createActiveRaid(70_092_121L)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_021L, "user", Difficulty.NORMAL)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_021L, "user", Difficulty.HARD)
+
+        val result = raidDomainService.cancelParticipation(raid.id, 92_100_021L).getOrThrow()
+
+        assertTrue(result.participantRemoved)
+        assertEquals(2L, result.removedReportCount)
+        assertTrue(raidParticipantRepository.findParticipantsByRaidId(raid.id).isEmpty())
+        assertTrue(raidReportRepository.findAllRaidReportsByRaidId(raid.id).isEmpty())
+    }
+
+    @Test
+    fun `参加取り消し_他ユーザーの参加者と報告は残る`() {
+        val raid = createActiveRaid(70_092_122L)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_022L, "me", Difficulty.NORMAL)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_023L, "other", Difficulty.NORMAL)
+
+        raidDomainService.cancelParticipation(raid.id, 92_100_022L)
+
+        assertEquals(listOf(92_100_023L), raidParticipantRepository.findParticipantsByRaidId(raid.id).map { it.userId })
+        assertEquals(listOf("other"), raidDomainService.aggregateRaidResults(raid.id).normalUsers)
+    }
+
+    @Test
+    fun `参加取り消し_報告だけで参加者の行が無くても報告は削除される`() {
+        val raid = createActiveRaid(70_092_123L)
+        raidReportRepository.saveRaidReport(
+            RaidReport(raidId = raid.id, userId = 92_100_024L, username = "legacy", difficulty = Difficulty.HARD.value, reportedAt = OffsetDateTime.now())
+        )
+
+        val result = raidDomainService.cancelParticipation(raid.id, 92_100_024L).getOrThrow()
+
+        assertFalse(result.participantRemoved)
+        assertEquals(1L, result.removedReportCount)
+        assertTrue(raidReportRepository.findAllRaidReportsByRaidId(raid.id).isEmpty())
+    }
+
+    @Test
+    fun `参加取り消し_参加者でも報告者でもなければ成功し件数は0`() {
+        val raid = createActiveRaid(70_092_124L)
+
+        val result = raidDomainService.cancelParticipation(raid.id, 92_100_025L).getOrThrow()
+
+        assertFalse(result.participantRemoved)
+        assertEquals(0L, result.removedReportCount)
+    }
+
+    @Test
+    fun `参加取り消し_存在しないレイドはRaidNotFoundエラーになる`() {
+        val result = raidDomainService.cancelParticipation(Int.MAX_VALUE, 92_100_026L)
+
+        assertInstanceOf(RaidDomainError.RaidNotFound::class.java, result.exceptionOrNull())
+    }
+
+    @Test
+    fun `参加取り消し_終了済みレイドでも削除できる`() {
+        val raid = createActiveRaid(70_092_125L)
+        raidDomainService.reportThreeTurn(raid.id, 92_100_027L, "user", Difficulty.NORMAL)
+        raidDomainService.finishRaid(raidId = raid.id)
+
+        val result = raidDomainService.cancelParticipation(raid.id, 92_100_027L).getOrThrow()
+
+        assertTrue(result.participantRemoved)
+        assertEquals(1L, result.removedReportCount)
     }
 
     private fun createActiveRaid(guildId: Long): gg.nikke.raid.bot.entity.UnionRaid {
