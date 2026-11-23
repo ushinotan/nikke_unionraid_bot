@@ -45,7 +45,7 @@ stack:
   frontend:
     framework: "Next.js 16 (App Router, React 19)"
     ui:    "Tailwind CSS 4"
-    e2e:   TBD                  # no evidence — no cypress/playwright; web has only node:test unit tests (web/__tests__)
+    e2e:   "Playwright (Chromium) — web/e2e/*.spec.ts, `cd web && npm run test:e2e` (mock backend on :18080, web on :3100; no bot/DB/Discord)"   # web/playwright.config.ts; unit tests stay on node:test (web/__tests__)
     build: 'cd web && npm run build'
     lint:  'cd web && npm run lint'
   arch_notes_doc: docs/codebase/overview.md   # REST API details: kotlin/docs/API.md
@@ -66,16 +66,17 @@ evidence:
   slowmo: 500
   resolution: 1920x1080
   artifacts:
-    videos:          TBD        # no E2E tool yet
-    screenshots:     TBD        # no E2E tool yet
+    videos:          web/test-results   # Playwright outputDir; video always on with EVIDENCE_MODE, else retain-on-failure (gitignored)
+    screenshots:     web/test-results   # always on with EVIDENCE_MODE, else only-on-failure
     backend_result:  kotlin/build/test-results/test
-    frontend_result: TBD        # node:test has no result file configured
+    frontend_result: web/e2e-results/junit.xml   # Playwright junit reporter (E2E only; node:test has no result file)
 
 tests:
   dir: .
   layout:
     backend:  'kotlin/src/test/kotlin/gg/nikke/raid/bot/{bot,config,controller,repository,service,util}/*Test.kt'
     frontend: 'web/__tests__/*.test.ts'
+    frontend_e2e: 'web/e2e/*.spec.ts'   # helpers/mock backend in web/e2e/support/
   seeder: init.sql
 
 docs_map:
@@ -116,6 +117,7 @@ models:                         # omitted roles use the plugin defaults (CONTRAC
 - Two apps in one repo: `kotlin/` (Spring Boot API + JDA bot, port 8080) and `web/` (Next.js BFF, port 3000). Web → bot calls go through `BACKEND_URL` with the `X-Internal-Api-Token` header.
 - `web/` uses Next.js 16 with breaking changes: read `web/node_modules/next/dist/docs/` before writing code (see `web/AGENTS.md`). `middleware.ts` is `proxy.ts`.
 - Schema: `init.sql` is the base; incremental changes go in `migrations/YYYYMMDD_*.sql`. The bot container applies the schema with psql on startup.
+- E2E (Playwright) needs no bot, DB or real Discord: `web/e2e/support/mock-backend.ts` stands in for the bot API. Details and ports: `docs/conventions/testing.md` → E2E. CI job: `web-e2e` in `.github/workflows/pr-test.yml`.
 - Backend tests need a running PostgreSQL with `init.sql` applied (see `.github/workflows/pr-test.yml`).
 - `.env` is not copied into worktrees: symlink it from the main checkout. Compose uses the folder name as the project name, but `container_name` is fixed (`nikke_unionraid_*`), so only one worktree can run the stack at a time.
 - `master` is the release branch (develop → master release PRs, then back-merge into develop).

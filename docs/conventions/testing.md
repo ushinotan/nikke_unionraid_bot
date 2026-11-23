@@ -66,6 +66,25 @@ cd web && npm run lint && npm run build
   - `page.tsx` などの form action
 - 境界値（53bit を超える権限値、不正な形式の ID など）はケースを分けて書く。
 
+## E2E（Playwright）
+
+ブラウザで画面を操作して確かめるテストです。bot・DB・本物の Discord は使いません。
+
+```bash
+cd web && npm run test:e2e
+```
+
+- 置き場所は `web/e2e/*.spec.ts`。共有の定数・モック・クッキー生成は `web/e2e/support/` に置く（ポートや秘密値は `constants.ts` だけで定義する）。設定は `web/playwright.config.ts`。ブラウザは Chromium のみ。
+- 初回は `npx playwright install chromium`（CI は `--with-deps` 付き）。CI のジョブは `pr-test.yml` の `web-e2e`。
+- ポート: web は `3100`、モックバックエンドは `18080`。ぶつかるときは `E2E_PORT` / `E2E_BACKEND_PORT` で変える。
+- `npm run test:e2e` は `npm run build && npm run start` を走らせるので、手元では `web/.next` が作り直される。`output: "standalone"` のため `next start` は警告を出すが、動作に問題はない。
+- モックバックエンドは本物の `node:http` サーバー（`e2e/support/mock-backend.ts`）。Next.js のサーバー側 `fetch` は `page.route` で横取りできないため。
+- ログイン状態は `e2e/support/session.ts` のクッキー生成で作る。ペルソナは `member`（ログイン済み）と `anonymous`（クッキーなし）など。
+- `discord.com` は Chromium の `--host-resolver-rules=MAP discord.com ~NOTFOUND` で名前解決を止めている（リダイレクト先は `page.route` で止められない）。
+- リダイレクトの `Location` は相対パスで返る（307）。URL 全体ではなくパスで比較する。
+- 証跡: `EVIDENCE_MODE=1`（任意で `SLOW_MO`）でスクリーンショット・動画・トレースを常に残し、解像度は 1920x1080。通常は失敗時のみ。
+- `test-results/`・`playwright-report/`・`e2e-results/`（`junit.xml`）は gitignore 済みで、ESLint の対象外、`web/.dockerignore` でイメージにも入れない。
+
 ## 静的検査・ガードテスト
 
 ソースコードを読んで「書き方の抜け」を検出するテスト（例: 書き込みルートが権限チェックを通っているかの検査）の書き方です。抜けを見逃すと、テストが緑のまま穴が開きます。
