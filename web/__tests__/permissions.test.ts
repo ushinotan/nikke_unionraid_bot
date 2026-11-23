@@ -1,8 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import {
+  MAX_CLOCK_SKEW_MS,
   PRIVILEGE_MAX_AGE_MS,
   canEditParticipant,
+  checkParticipantEdit,
+  checkPrivilege,
   isPermissionStale,
   isPrivileged,
 } from "../lib/permissions";
@@ -39,8 +42,33 @@ describe("isPermissionStale", () => {
     assert.strictEqual(isPermissionStale({ loggedInAt: NaN }, NOW), true);
   });
 
-  it("loggedInAt が未来なら false", () => {
+  it("loggedInAt が許容幅（5 分）以内の未来なら false", () => {
     assert.strictEqual(isPermissionStale({ loggedInAt: NOW + 60 * 1000 }, NOW), false);
+    assert.strictEqual(isPermissionStale({ loggedInAt: NOW + MAX_CLOCK_SKEW_MS }, NOW), false);
+  });
+
+  it("loggedInAt が許容幅を超えて未来なら true", () => {
+    assert.strictEqual(isPermissionStale({ loggedInAt: NOW + MAX_CLOCK_SKEW_MS + 1 }, NOW), true);
+    assert.strictEqual(isPermissionStale({ loggedInAt: NOW + PRIVILEGE_MAX_AGE_MS }, NOW), true);
+  });
+});
+
+describe("checkPrivilege", () => {
+  it("特権ユーザーなら allowed", () => {
+    assert.strictEqual(checkPrivilege(sessionWith({ owner: false, permissions: "8" }), GUILD_ID, NOW), "allowed");
+  });
+
+  it("期限内で権限が無ければ denied", () => {
+    assert.strictEqual(checkPrivilege(sessionWith({ owner: false, permissions: "0" }), GUILD_ID, NOW), "denied");
+  });
+
+  it("期限内で所属していないギルドなら denied", () => {
+    assert.strictEqual(checkPrivilege(sessionWith({ owner: true }), "222222222222222222", NOW), "denied");
+  });
+
+  it("期限切れなら権限の有無に関係なく stale", () => {
+    assert.strictEqual(checkPrivilege(sessionWith({ owner: true }), GUILD_ID, EXPIRED), "stale");
+    assert.strictEqual(checkPrivilege(sessionWith({ owner: false, permissions: "0" }), GUILD_ID, EXPIRED), "stale");
   });
 });
 
@@ -175,5 +203,28 @@ describe("canEditParticipant", () => {
   it("期限切れでも本人は進行中レイドを操作できる", () => {
     assert.strictEqual(canEditParticipant(privileged, ongoing, SELF, EXPIRED), true);
     assert.strictEqual(canEditParticipant(general, ongoing, SELF, EXPIRED), true);
+  });
+
+  describe("checkParticipantEdit の拒否理由", () => {
+    it("期限切れで他人を操作すると stale", () => {
+      assert.strictEqual(checkParticipantEdit(privileged, ongoing, OTHER, EXPIRED), "stale");
+      assert.strictEqual(checkParticipantEdit(general, ongoing, OTHER, EXPIRED), "stale");
+    });
+
+    it("期限切れで終了済みレイドの本人分を操作すると stale（特権ユーザーなら再ログインで通る）", () => {
+      assert.strictEqual(checkParticipantEdit(privileged, finished, SELF, EXPIRED), "stale");
+      assert.strictEqual(checkParticipantEdit(general, finished, SELF, EXPIRED), "stale");
+    });
+
+    it("期限内の一般メンバーの拒否は denied", () => {
+      assert.strictEqual(checkParticipantEdit(general, ongoing, OTHER, NOW), "denied");
+      assert.strictEqual(checkParticipantEdit(general, finished, SELF, NOW), "denied");
+    });
+
+    it("期限切れでも所属していないギルド・未ログインは denied", () => {
+      const outside = { guildId: "222222222222222222", finishedAt: null };
+      assert.strictEqual(checkParticipantEdit(privileged, outside, SELF, EXPIRED), "denied");
+      assert.strictEqual(checkParticipantEdit({ ...privileged, userId: undefined }, ongoing, SELF, EXPIRED), "denied");
+    });
   });
 });

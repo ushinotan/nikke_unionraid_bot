@@ -27,6 +27,27 @@ export interface SessionData {
   loggedInAt?: number;
 }
 
+/**
+ * ログイン（OAuth callback）で取得したユーザー・ギルド情報をセッションに入れる。
+ * 権限情報（owner / permissions）を取得した時刻として loggedInAt に now を入れる（特権判定の有効期限に使う）。
+ * 選択中のギルドに所属しなくなっていたら、選択を解除する。保存（session.save）は呼び出し側で行う。
+ */
+export function applyLogin(
+  session: SessionData,
+  login: { userId: string; guilds: GuildMetadata[] },
+  now: number = Date.now()
+): void {
+  const guildIds = login.guilds.map((g) => g.id);
+  session.userId = login.userId;
+  session.guildIds = guildIds;
+  session.guilds = login.guilds;
+  session.loggedInAt = now;
+
+  if (session.selectedGuildId && !guildIds.includes(session.selectedGuildId)) {
+    delete session.selectedGuildId;
+  }
+}
+
 export function getSessionOptions(): SessionOptions {
   const secret = process.env.SESSION_SECRET;
   if (!secret) {

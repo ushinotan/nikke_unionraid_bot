@@ -221,10 +221,34 @@ describe("requireRaidEditPermission", () => {
       });
     });
 
-    it("期限切れの一般メンバーが終了済みレイドの本人分を操作すると 403 で error が FORBIDDEN", async () => {
+    it("期限切れの特権ユーザーが終了済みレイドの本人分を操作すると 403 で error が REAUTH_REQUIRED", async () => {
+      backendRaid = raid({ finishedAt: "2026-11-02T00:00:00Z" });
+      assert.deepStrictEqual(
+        await errorOf(privileged, { kind: "participant", targetUserId: SELF }, EXPIRED),
+        { status: 403, error: "REAUTH_REQUIRED" }
+      );
+    });
+
+    it("期限切れの一般メンバーが終了済みレイドの本人分を操作すると 403 で error が REAUTH_REQUIRED", async () => {
+      // 期限切れの間は特権ユーザーかどうか分からないので、一般メンバーにも再ログインを求める
       backendRaid = raid({ finishedAt: "2026-11-02T00:00:00Z" });
       assert.deepStrictEqual(
         await errorOf(general, { kind: "participant", targetUserId: SELF }, EXPIRED),
+        { status: 403, error: "REAUTH_REQUIRED" }
+      );
+    });
+
+    it("期限切れの一般メンバーが特権操作をすると 403 で error が REAUTH_REQUIRED", async () => {
+      assert.deepStrictEqual(await errorOf(general, { kind: "privileged" }, EXPIRED), {
+        status: 403,
+        error: "REAUTH_REQUIRED",
+      });
+    });
+
+    it("期限内の一般メンバーが終了済みレイドの本人分を操作すると 403 で error が FORBIDDEN", async () => {
+      backendRaid = raid({ finishedAt: "2026-11-02T00:00:00Z" });
+      assert.deepStrictEqual(
+        await errorOf(general, { kind: "participant", targetUserId: SELF }),
         { status: 403, error: "FORBIDDEN" }
       );
     });

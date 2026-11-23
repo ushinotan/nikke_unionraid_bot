@@ -159,12 +159,13 @@ const auth = await requireRaidEditPermission(session, raidId, { kind: "privilege
 if (!auth.ok) return auth.response; // 401 / 400 / 403（FORBIDDEN / REAUTH_REQUIRED）/ 404
 ```
 
-- 判定にはセッションの `userId` / `guildIds` / `guilds` と、バックエンドから取得したレイドのギルド ID を使います（クライアントから送られたユーザー ID・ギルド ID は使いません）
+- 判定にはセッションの `userId` / `guildIds` / `guilds` / `loggedInAt` と、バックエンドから取得したレイドのギルド ID を使います（クライアントから送られたユーザー ID・ギルド ID は使いません）
 - `privileged`: 特権ユーザー（オーナー / `ADMINISTRATOR` / `MANAGE_GUILD`）のみ
-- `participant`: `canEditParticipant` で判定（本人は進行中レイドのみ、特権ユーザーは終了済みを含め全員分）
+- `participant`: `checkParticipantEdit` で判定（本人は進行中レイドのみ、特権ユーザーは終了済みを含め全員分）
 - 所属していないギルドのレイドは常に 403
-- 権限情報（オーナー / 権限ビット）はログイン時にセッションへ保存し、`loggedInAt` から `PRIVILEGE_MAX_AGE_MS`（`lib/permissions.ts`、1 日）を過ぎると特権ユーザーとして扱いません（`loggedInAt` が無い古いセッションも同様）。権限を外されたユーザーは最大 1 日で特権を失います
-- 期限切れで特権として扱えないときは 403 `{ error: "REAUTH_REQUIRED" }` を返します。「再ログインで解決する可能性がある」という意味で、権限が古い一般メンバーにも返ります。再ログイン後に権限が無ければ `FORBIDDEN` になります
+- 権限情報（オーナー / 権限ビット）はログイン時にセッションへ保存し、`loggedInAt` から `PRIVILEGE_MAX_AGE_MS`（`lib/permissions.ts`、1 日）を過ぎると特権ユーザーとして扱いません（`loggedInAt` が無い古いセッション、`MAX_CLOCK_SKEW_MS`（5 分）を超えて未来の `loggedInAt` も同様）。権限を外されたユーザーは最大 1 日で特権を失います
+- 期限切れで拒否したときは 403 `{ error: "REAUTH_REQUIRED" }` を返します。「再ログインで解決する可能性がある」という意味で、権限が古い一般メンバーにも返ります（終了済みレイドの本人分の操作も含む）。再ログイン後に権限が無ければ `FORBIDDEN` になります
+- セッションの値を自分で組み立てる場合（テストなど）は `loggedInAt` を忘れずに入れてください。無いと常に期限切れ扱いになり、特権ユーザーも `REAUTH_REQUIRED` になります
 - `participant` の `targetUserId` は、**実際に書き込むレコードの持ち主**から取ってください
   - 自分の分を作成・更新するルートでは、`targetUserId` もバックエンドに送るユーザー ID も `auth.userId` を使う
   - レコード ID（participantId / reportId など）で操作するルートでは、バックエンドから取得したそのレコードの `userId` を `targetUserId` にする

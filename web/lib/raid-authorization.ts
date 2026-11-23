@@ -6,9 +6,9 @@ import {
   validateNumericId,
 } from "@/lib/backend-client";
 import {
-  canEditParticipant,
-  isPermissionStale,
-  isPrivileged,
+  checkParticipantEdit,
+  checkPrivilege,
+  type PermissionCheck,
 } from "@/lib/permissions";
 import type { SessionData } from "@/lib/session";
 
@@ -65,9 +65,8 @@ function reauthRequired(): NextResponse {
  * raid はバックエンドから取得したものを渡すこと。ギルド ID などクライアントから
  * 送られた値で判定してはいけない。
  *
- * 特権が要る判定で拒否し、権限情報が古い（isPermissionStale）ときは、
- * 再ログインで解決する可能性があるので REAUTH_REQUIRED を返す。
- * 本人分の操作が終了済みレイドで拒否された場合は、再ログインしても変わらないので FORBIDDEN のまま。
+ * 拒否の理由が stale（権限情報が古い）なら、再ログインで解決する可能性があるので REAUTH_REQUIRED、
+ * denied なら FORBIDDEN を返す。理由は checkPrivilege / checkParticipantEdit の結果をそのまま使う。
  */
 export function authorizeRaidEdit(
   session: RaidEditSession,
@@ -82,22 +81,30 @@ export function authorizeRaidEdit(
   }
 
   if (requirement.kind === "privileged") {
-    if (isPrivileged(session, raid.guildId, now)) return null;
-    return isPermissionStale(session, now)
-      ? reauthRequired()
-      : forbidden("Privileged permission is required");
+    return toResponse(
+      checkPrivilege(session, raid.guildId, now),
+      "Privileged permission is required"
+    );
   }
 
-  if (canEditParticipant(session, raid, requirement.targetUserId, now)) {
-    return null;
+  return toResponse(
+    checkParticipantEdit(session, raid, requirement.targetUserId, now),
+    "Not allowed to edit this participant"
+  );
+}
+
+function toResponse(
+  check: PermissionCheck,
+  forbiddenMessage: string
+): NextResponse | null {
+  switch (check) {
+    case "allowed":
+      return null;
+    case "stale":
+      return reauthRequired();
+    case "denied":
+      return forbidden(forbiddenMessage);
   }
-  if (
-    requirement.targetUserId !== session.userId &&
-    isPermissionStale(session, now)
-  ) {
-    return reauthRequired();
-  }
-  return forbidden("Not allowed to edit this participant");
 }
 
 export type RaidEditAuthorizationResult =

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
+import { applyLogin, getSession } from "@/lib/session";
 import { fetchFromBackend } from "@/lib/backend-client";
 import type { GuildsResponse } from "@/lib/api-types";
 import { getPublicOrigin } from "@/lib/origin";
@@ -133,17 +133,11 @@ export async function GET(request: NextRequest) {
       userGuilds = userGuilds.concat(nextPage);
     }
 
-    const userGuildIds = userGuilds.map((g) => g.id);
-
     const backendGuilds = await fetchFromBackend<GuildsResponse>("/api/guilds");
     const registeredGuildIds = backendGuilds.guilds.map((g) => g.guildId);
 
-    const intersectedGuildIds = userGuildIds.filter((gid) =>
-      registeredGuildIds.includes(gid)
-    );
-
     const intersectedGuilds = userGuilds
-      .filter((g) => intersectedGuildIds.includes(g.id))
+      .filter((g) => registeredGuildIds.includes(g.id))
       .map((g) => ({
         id: g.id,
         name: g.name,
@@ -152,18 +146,7 @@ export async function GET(request: NextRequest) {
         permissions: g.permissions,
       }));
 
-    session.userId = user.id;
-    session.guildIds = intersectedGuildIds;
-    session.guilds = intersectedGuilds;
-    // 権限情報（owner / permissions）を取得した時刻。特権判定の有効期限に使う
-    session.loggedInAt = Date.now();
-
-    if (
-      session.selectedGuildId &&
-      !intersectedGuildIds.includes(session.selectedGuildId)
-    ) {
-      delete session.selectedGuildId;
-    }
+    applyLogin(session, { userId: user.id, guilds: intersectedGuilds });
 
     await session.save();
 
