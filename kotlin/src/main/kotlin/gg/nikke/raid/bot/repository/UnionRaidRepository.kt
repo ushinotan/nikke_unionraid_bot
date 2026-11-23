@@ -70,6 +70,25 @@ class UnionRaidRepository (
     }
 
     /**
+     * 指定されたレイドIDのユニオンレイドを、行ロック（`SELECT ... FOR UPDATE`）付きで取得します。
+     *
+     * **トランザクションの中で呼ぶこと。** トランザクションの外ではロックが文の終わりで外れ、排他の役に立ちません。
+     * 参加者・報告への書き込みは、このメソッドでレイド行をロックしてから行います。
+     *
+     * @param raidId 検索対象のレイドID
+     * @return 一致する `UnionRaid`（ロック取得後の最新の行）。存在しない場合は `null`。
+     */
+    fun findUnionRaidByIdForUpdate(raidId: Int): UnionRaid? {
+        val query = QueryDsl.from(unionRaidTable)
+            .where {
+                unionRaidTable.id eq raidId
+            }
+            .forUpdate()
+            .firstOrNull()
+        return database.runQuery(query)
+    }
+
+    /**
      * 通知時刻が設定されており、まだ終了していないユニオンレイド一覧を取得します。
      * 終了予定時刻を過ぎたレイドは開始通知の対象外とします。
      *

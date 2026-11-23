@@ -293,25 +293,32 @@ class UnionRaidEventListener(
         val difficulty = Difficulty.fromValue(difficultyValue)
         val userId = event.user.idLong
 
-        val alreadyReported = raidDomainService.hasReported(raidId, userId, difficulty)
+        val result = try {
+            raidDomainService.reportThreeTurn(
+                raidId = raidId,
+                userId = userId,
+                username = event.member?.effectiveName ?: event.user.name,
+                difficulty = difficulty,
+            )
+        } catch (e: Exception) {
+            logger.error("3凸報告の処理中にエラーが発生しました (raidId=$raidId)", e)
+            replaceSelectMenu(event, UNEXPECTED_ERROR_MESSAGE)
+            return
+        }
 
-        val result = raidDomainService.reportThreeTurn(
-            raidId = raidId,
-            userId = userId,
-            username = event.member?.effectiveName ?: event.user.name,
-            difficulty = difficulty,
-        )
-
-        result.onSuccess {
-            val message = if (alreadyReported) {
-                "${difficulty.label}は既に報告済みでした。報告時刻を更新しました。"
-            } else {
-                "報告を受け付けました。"
+        // ここから先はコミット済み。失敗してもログだけ残し、エラー応答は返さない
+        runAfterCommit("3凸報告の応答", raidId) {
+            result.onSuccess { report ->
+                val message = if (report.alreadyReported) {
+                    "${difficulty.label}は既に報告済みでした。報告時刻を更新しました。"
+                } else {
+                    "報告を受け付けました。"
+                }
+                replaceSelectMenu(event, message)
+                scheduler.updateRaidMessage(event.jda, raidId)
+            }.onFailure { error ->
+                replaceSelectMenu(event, raidErrorMessage(error, "報告できません"))
             }
-            replaceSelectMenu(event, message)
-            scheduler.updateRaidMessage(event.jda, raidId)
-        }.onFailure { error ->
-            replaceSelectMenu(event, raidErrorMessage(error, "報告できません"))
         }
     }
 
@@ -319,23 +326,37 @@ class UnionRaidEventListener(
         val raidId = event.componentId.removePrefix(CANCEL_SELECT_PREFIX).toIntOrNull() ?: return
         val difficulties = event.values.map { Difficulty.fromValue(it) }.toSet()
 
-        val result = raidDomainService.cancelThreeTurnReports(
-            raidId = raidId,
-            userId = event.user.idLong,
-            difficulties = difficulties,
-        )
+        val result = try {
+            raidDomainService.cancelThreeTurnReports(
+                raidId = raidId,
+                userId = event.user.idLong,
+                difficulties = difficulties,
+            )
+        } catch (e: Exception) {
+            logger.error("3凸報告の取り消し処理中にエラーが発生しました (raidId=$raidId)", e)
+            replaceSelectMenu(event, UNEXPECTED_ERROR_MESSAGE)
+            return
+        }
 
-        result.onSuccess { cancelled ->
-            if (cancelled.isEmpty()) {
-                replaceSelectMenu(event, "取り消せる報告がありませんでした。")
-                return@onSuccess
+        // ここから先はコミット済み。失敗してもログだけ残し、エラー応答は返さない
+        runAfterCommit("3凸報告取り消しの応答", raidId) {
+            result.onSuccess { cancel ->
+                if (cancel.cancelled.isEmpty()) {
+                    replaceSelectMenu(event, "取り消せる報告がありませんでした。")
+                    return@onSuccess
+                }
+                // 選択値ではなく、実際に取り消された難易度を表示する
+                val labels = cancel.cancelled.sortedBy { it.ordinal }.joinToString("・") { it.label }
+                val suffix = if (cancel.participantRemoved) {
+                    "\n3凸報告が無くなったため、参加者からも外れました（入力済みのスコアも削除されます）。"
+                } else {
+                    ""
+                }
+                replaceSelectMenu(event, "${labels}の報告を取り消しました。$suffix")
+                scheduler.updateRaidMessage(event.jda, raidId)
+            }.onFailure { error ->
+                replaceSelectMenu(event, raidErrorMessage(error, "報告を取り消せません"))
             }
-            // 選択値ではなく、実際に取り消された難易度を表示する
-            val labels = cancelled.sortedBy { it.ordinal }.joinToString("・") { it.label }
-            replaceSelectMenu(event, "${labels}の報告を取り消しました。")
-            scheduler.updateRaidMessage(event.jda, raidId)
-        }.onFailure { error ->
-            replaceSelectMenu(event, raidErrorMessage(error, "報告を取り消せません"))
         }
     }
 
@@ -359,10 +380,20 @@ class UnionRaidEventListener(
         guildRepository.deleteGuildById(event.guild.idLong)
     }
 
+    /** コミット後の応答処理。失敗しても二重応答しないよう、ログだけ残す。 */
+    private fun runAfterCommit(what: String, raidId: Int, block: () -> Unit) {
+        try {
+            block()
+        } catch (e: Exception) {
+            logger.error("${what}に失敗しました (raidId=$raidId)", e)
+        }
+    }
+
     companion object {
         const val REPORT_BUTTON_ID = "raid_report"
         const val REPORT_CANCEL_BUTTON_ID = "raid_report_cancel"
         private const val DIFFICULTY_SELECT_PREFIX = "difficulty_select_"
         private const val CANCEL_SELECT_PREFIX = "cancel_report_select_"
+        private const val UNEXPECTED_ERROR_MESSAGE = "エラーが発生しました。時間をおいて再度お試しください。"
     }
 }

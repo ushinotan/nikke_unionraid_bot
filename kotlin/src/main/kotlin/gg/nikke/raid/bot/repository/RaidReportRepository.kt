@@ -100,8 +100,11 @@ class RaidReportRepository(
      * @param userId ユーザー ID
      * @param difficulties 削除対象の難易度（例: `normal`, `hard`）。空の場合は何も削除しない
      * @return 削除された件数
+     *
+     * **レイド行のロックを取ったトランザクションの中で呼ぶこと**（`RaidDomainService` 経由）。外から呼ぶと `IllegalStateException`。
      */
     fun deleteRaidReports(raidId: Int, userId: Long, difficulties: Collection<String>): Long {
+        requireActiveTransaction("deleteRaidReports")
         if (difficulties.isEmpty()) return 0L
 
         val query = QueryDsl.delete(raidReportTable)
@@ -115,12 +118,35 @@ class RaidReportRepository(
     }
 
     /**
+     * 指定したレイド・ユーザーの報告を、難易度・`is_3t` を問わず全て削除する。
+     *
+     * @param raidId レイド ID
+     * @param userId ユーザー ID
+     * @return 削除された件数
+     *
+     * **レイド行のロックを取ったトランザクションの中で呼ぶこと**（`RaidDomainService` 経由）。外から呼ぶと `IllegalStateException`。
+     */
+    fun deleteRaidReportsByRaidIdAndUserId(raidId: Int, userId: Long): Long {
+        requireActiveTransaction("deleteRaidReportsByRaidIdAndUserId")
+        val query = QueryDsl.delete(raidReportTable)
+            .where {
+                raidReportTable.raidId eq raidId
+                raidReportTable.userId eq userId
+            }
+
+        return database.runQuery(query)
+    }
+
+    /**
      * レイド報告を挿入する。既に同じレイド ID、ユーザー ID、難易度の報告が存在する場合は、その報告を更新する。
      *
      * @param raidReport 挿入または更新する `RaidReport` オブジェクト
      * @return 挿入または更新されたレポートのID
+     *
+     * **レイド行のロックを取ったトランザクションの中で呼ぶこと**（`RaidDomainService` 経由）。外から呼ぶと `IllegalStateException`。
      */
     fun saveRaidReport(raidReport: RaidReport): Long {
+        requireActiveTransaction("saveRaidReport")
         val report = raidReport.copy(is3t = 1)
 
         val query = QueryDsl.insert(raidReportTable)
