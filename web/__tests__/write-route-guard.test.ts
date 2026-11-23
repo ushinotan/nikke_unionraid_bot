@@ -98,33 +98,84 @@ function writeExports(file: ts.SourceFile): { handlers: ExportedHandler[]; probl
   return { handlers, problems };
 }
 
-/** fetchFromBackend / fetch の第 2 引数の method。指定が無ければ "GET"、リテラル以外なら null */
-function requestMethod(call: ts.CallExpression): string | null {
-  const init = call.arguments[1];
-  if (!init) return "GET";
-  if (!ts.isObjectLiteralExpression(init)) return null;
-  const prop = init.properties.find(
-    (p) => ts.isPropertyAssignment(p) && ts.isIdentifier(p.name) && p.name.text === "method"
-  );
-  if (!prop) return init.properties.some(ts.isSpreadAssignment) ? null : "GET";
-  const value = (prop as ts.PropertyAssignment).initializer;
-  return ts.isStringLiteralLike(value) ? value.text.toUpperCase() : null;
+const BACKEND_MODULE = /(?:^|\/)backend-client$/;
+const BACKEND_FUNCTION = "fetchFromBackend";
+
+type BackendImports = { names: Set<string>; problems: string[] };
+
+/** ファイル内で fetchFromBackend を指す名前（別名 import を含む）。名前空間 import は追えないので禁止する */
+function backendImports(file: ts.SourceFile): BackendImports {
+  const names = new Set([BACKEND_FUNCTION]);
+  const problems: string[] = [];
+  for (const stmt of file.statements) {
+    if (!ts.isImportDeclaration(stmt) || !ts.isStringLiteral(stmt.moduleSpecifier)) continue;
+    if (!BACKEND_MODULE.test(stmt.moduleSpecifier.text)) continue;
+    const bindings = stmt.importClause?.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) {
+      const line = file.getLineAndCharacterOfPosition(stmt.getStart()).line + 1;
+      problems.push(`L${line}: backend-client は名前空間 import せず、使う名前を import してください（呼び出しを検査できません）`);
+    } else if (bindings) {
+      for (const e of bindings.elements) {
+        if ((e.propertyName ?? e.name).text === BACKEND_FUNCTION) names.add(e.name.text);
+      }
+    }
+  }
+  return { names, problems };
 }
 
-const calleeName = (call: ts.CallExpression) =>
-  ts.isIdentifier(call.expression)
-    ? call.expression.text
-    : ts.isPropertyAccessExpression(call.expression)
-      ? call.expression.name.text
-      : null;
+/** 外部 API の固定 URL（ホストまで文字列リテラルの "https://discord.com/..." など） */
+function isExternalUrl(url: ts.Expression): boolean {
+  const EXTERNAL = /^https:\/\/[^/]+\//;
+  if (ts.isStringLiteralLike(url)) return EXTERNAL.test(url.text);
+  return ts.isTemplateExpression(url) && EXTERNAL.test(url.head.text);
+}
 
-/** fetchFromBackend か、外部の固定 URL（"https://discord.com/..." など文字列リテラル）以外への fetch */
-function isBackendCall(call: ts.CallExpression): boolean {
-  if (!ts.isIdentifier(call.expression)) return false;
-  if (call.expression.text === "fetchFromBackend") return true;
-  if (call.expression.text !== "fetch") return false;
+/** fetch の init の method。指定が無いと確かめられたときだけ "GET"、読めないときは null */
+function initMethod(init: ts.Expression | undefined): string | null {
+  if (!init) return "GET";
+  if (!ts.isObjectLiteralExpression(init)) return null;
+  let method = "GET";
+  for (const p of init.properties) {
+    const key = ts.isSpreadAssignment(p) ? undefined : p.name;
+    if (!key || !(ts.isIdentifier(key) || ts.isStringLiteralLike(key))) return null; // スプレッド・計算キー
+    if (key.text !== "method") continue;
+    if (!ts.isPropertyAssignment(p) || !ts.isStringLiteralLike(p.initializer)) return null; // 省略記法・変数
+    method = p.initializer.text.toUpperCase();
+  }
+  return method;
+}
+
+/**
+ * バックエンドへの呼び出しなら、その HTTP メソッド（読めなければ null）。バックエンドへの呼び出しでなければ null を返す。
+ * - fetchFromBackend（別名 import と `x.fetchFromBackend(...)` を含む）は第 2 引数から読む
+ * - fetch は外部 API の固定 URL 以外を常に method 不明とする（`new Request(url, { method })` を渡せるため）
+ */
+function backendCallInfo(call: ts.CallExpression, names: Set<string>): { method: string | null } | null {
+  const callee = call.expression;
+  const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : null;
+  if ((ts.isIdentifier(callee) && names.has(callee.text)) || (!ts.isIdentifier(callee) && name === BACKEND_FUNCTION)) {
+    return { method: initMethod(call.arguments[1]) };
+  }
+  if (name !== "fetch") return null;
   const [url] = call.arguments;
-  return !(url && ts.isStringLiteralLike(url) && /^https:\/\//.test(url.text));
+  return url && isExternalUrl(url) ? null : { method: null };
+}
+
+/** fetchFromBackend を呼ばずに値として渡している箇所（`const f = fetchFromBackend` など。呼び出しを追えない） */
+function backendReferences(file: ts.SourceFile, names: Set<string>): string[] {
+  const found: string[] = [];
+  walk(file, (node) => {
+    if (!ts.isIdentifier(node) || !names.has(node.text)) return;
+    const parent = node.parent;
+    if (ts.isImportSpecifier(parent)) return;
+    if (ts.isCallExpression(parent) && parent.expression === node) return;
+    if (ts.isPropertyAccessExpression(parent) && parent.name === node) {
+      if (ts.isCallExpression(parent.parent) && parent.parent.expression === parent) return;
+    }
+    const line = file.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+    found.push(`L${line}: ${node.text} は直接呼び出してください（値として渡すと検査できません）`);
+  });
+  return found;
 }
 
 /** `const x = await requireRaidEditPermission(...)` なら x */
@@ -163,7 +214,7 @@ function isGuardCheck(stmt: ts.Statement | undefined, name: string): boolean {
 }
 
 /** ハンドラー直下で、ガードと結果の確認が決まった形で並び、その前に危険な呼び出しが無いか */
-function guardProblem(fn: ts.FunctionDeclaration | null): string | null {
+function guardProblem(fn: ts.FunctionDeclaration | null, names: Set<string>): string | null {
   if (!fn?.body) return "export async function の形で書いてください（本体を検査できません）";
   const stmts = fn.body.statements;
   const index = stmts.findIndex((s) => guardVariable(s) !== null);
@@ -178,16 +229,16 @@ function guardProblem(fn: ts.FunctionDeclaration | null): string | null {
   for (const stmt of stmts.slice(0, index)) {
     walk(stmt, (node) => {
       if (!ts.isCallExpression(node)) return;
-      const name = calleeName(node);
-      if (isBackendCall(node)) {
-        if (name === "fetchFromBackend" && requestMethod(node) === "GET") return;
+      const info = backendCallInfo(node, names);
+      if (info) {
+        if (info.method === "GET") return;
       } else if (
         (ts.isIdentifier(node.expression) && SAFE_CALLS_BEFORE_GUARD.has(node.expression.text)) ||
         (ts.isPropertyAccessExpression(node.expression) && SAFE_METHODS_BEFORE_GUARD.has(node.expression.name.text))
       ) {
         return;
       }
-      unsafe.push(`${name ?? node.expression.getText()}()`);
+      unsafe.push(`${node.expression.getText()}()`);
     });
   }
   if (unsafe.length > 0) {
@@ -197,11 +248,13 @@ function guardProblem(fn: ts.FunctionDeclaration | null): string | null {
 }
 
 /** 書き込みメソッドのハンドラーの外で、GET 以外の fetchFromBackend / fetch を呼んでいる箇所 */
-function writesOutsideHandlers(file: ts.SourceFile, handlers: ExportedHandler[]): string[] {
+function writesOutsideHandlers(file: ts.SourceFile, handlers: ExportedHandler[], names: Set<string>): string[] {
   const inside = handlers.flatMap((h) => (h.fn ? [h.fn] : []));
   const found: string[] = [];
   walk(file, (node) => {
-    if (!ts.isCallExpression(node) || !isBackendCall(node) || requestMethod(node) === "GET") return;
+    if (!ts.isCallExpression(node)) return;
+    const info = backendCallInfo(node, names);
+    if (!info || info.method === "GET") return;
     if (inside.some((fn) => node.pos >= fn.pos && node.end <= fn.end)) return;
     const line = file.getLineAndCharacterOfPosition(node.getStart()).line + 1;
     found.push(`L${line}: 書き込み（または method が読めない呼び出し）は書き込みメソッドのハンドラーの中で、ガードの後に行ってください`);
@@ -225,13 +278,18 @@ describe("書き込みハンドラーのガード", () => {
     for (const rel of routeFiles) {
       const file = files.get(rel)!;
       const { handlers, problems } = writeExports(file);
-      violations.push(...problems.map((p) => `${rel} ${p}`));
+      const backend = backendImports(file);
+      violations.push(...[...problems, ...backend.problems].map((p) => `${rel} ${p}`));
       for (const { method, fn, line } of handlers) {
         if (ALLOWLIST[rel]?.methods.includes(method)) continue;
-        const problem = guardProblem(fn);
+        const problem = guardProblem(fn, backend.names);
         if (problem) violations.push(`${rel} L${line} ${method}: ${problem}`);
       }
-      violations.push(...writesOutsideHandlers(file, handlers).map((p) => `${rel} ${p}`));
+      violations.push(
+        ...[...writesOutsideHandlers(file, handlers, backend.names), ...backendReferences(file, backend.names)].map(
+          (p) => `${rel} ${p}`
+        )
+      );
     }
     assert.deepStrictEqual(
       violations,
@@ -275,8 +333,9 @@ describe("書き込みハンドラーのガード", () => {
     for (const rel of Object.keys(ALLOWLIST)) {
       const file = files.get(rel);
       if (!file) continue;
+      const { names } = backendImports(file);
       walk(file, (node) => {
-        if (ts.isCallExpression(node) && isBackendCall(node)) calling.push(`${rel}: ${node.getText()}`);
+        if (ts.isCallExpression(node) && backendCallInfo(node, names)) calling.push(`${rel}: ${node.getText()}`);
         if (
           ts.isImportDeclaration(node) &&
           ts.isStringLiteral(node.moduleSpecifier) &&
