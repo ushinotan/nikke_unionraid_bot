@@ -22,3 +22,7 @@
 ## 書き込み系を追加するとき
 `lib/raid-authorization.ts` の `requireRaidEditPermission` を必ず通す。`targetUserId` は実際に書き込むレコードの持ち主から取り、
 クライアントから来たギルド ID などで判定しない（ファイル先頭のコメント参照）。
+- `web/__tests__/write-route-guard.test.ts`（F1）が `app/api/**/route.ts` を走査し、`POST/PUT/PATCH/DELETE` を export するルートが
+  `requireRaidEditPermission(` を呼んでいるか検査する。バックエンドに書き込まないルートは同テスト内の許可リスト（理由付き。現在は `auth/logout`、`session/selected-guild`）に追加する。
+- F1 は文字列一致で検出する。`export { x as POST }` や再 export は検出できず、コメント内の `requireRaidEditPermission(` でも通ってしまう。`export function POST` / `export const POST` の形で書き、レビューでも確認する。
+- ルートのテストでは 本人・特権・一般・所属外 の 4 パターンと「403 のときバックエンドへ書き込みが転送されない」ことを確かめる（フィクスチャは `web/__tests__/helpers/raid-edit-fixtures.ts`）。

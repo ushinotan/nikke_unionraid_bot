@@ -1,73 +1,30 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert";
 import { requireRaidEditPermission, type RaidEditSession } from "../lib/raid-authorization";
-import type { RaidSummaryDto } from "../lib/api-types";
-
-const GUILD_ID = "111111111111111111";
-const OTHER_GUILD_ID = "222222222222222222";
-const SELF = "900000000000000001";
-const OTHER = "900000000000000002";
-
-function raid(overrides: Partial<RaidSummaryDto> = {}): RaidSummaryDto {
-  return {
-    id: 1,
-    guildId: GUILD_ID,
-    raidName: "test",
-    startTime: "2026-11-01T00:00:00Z",
-    endTime: "2026-11-08T00:00:00Z",
-    notifyTime: null,
-    channelId: "333333333333333333",
-    ranking: null,
-    percentage: null,
-    finishedAt: null,
-    createdAt: "2026-11-01T00:00:00Z",
-    ...overrides,
-  };
-}
-
-const general: RaidEditSession = {
-  userId: SELF,
-  guildIds: [GUILD_ID],
-  guilds: [{ id: GUILD_ID, name: "Guild", owner: false, permissions: "0" }],
-};
-const privileged: RaidEditSession = {
-  userId: SELF,
-  guildIds: [GUILD_ID],
-  guilds: [{ id: GUILD_ID, name: "Guild", owner: false, permissions: "8" }],
-};
-const outsider: RaidEditSession = {
-  userId: SELF,
-  guildIds: [OTHER_GUILD_ID],
-  guilds: [{ id: OTHER_GUILD_ID, name: "Other", owner: true, permissions: "8" }],
-};
+import {
+  GUILD_ID,
+  OTHER,
+  SELF,
+  mockBackend,
+  outsider,
+  ownerMember,
+  privilegedMember as privileged,
+  raid,
+  selfMember as general,
+  type BackendMock,
+} from "./helpers/raid-edit-fixtures";
 
 describe("requireRaidEditPermission", () => {
-  const originalFetch = global.fetch;
-  let backendRaid: RaidSummaryDto | null;
+  let backend: BackendMock;
   let fetchedUrls: string[];
 
   beforeEach(() => {
-    backendRaid = raid();
-    fetchedUrls = [];
-    global.fetch = (async (url: string | URL | Request) => {
-      fetchedUrls.push(url.toString());
-      if (!backendRaid) {
-        return {
-          ok: false,
-          status: 404,
-          json: async () => ({ error: "NOT_FOUND", message: "Raid not found" }),
-        } as Response;
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ raid: backendRaid, participants: [], reports: [] }),
-      } as Response;
-    }) as typeof fetch;
+    backend = mockBackend();
+    fetchedUrls = backend.fetchedUrls;
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    backend.restore();
   });
 
   async function statusOf(
@@ -91,7 +48,7 @@ describe("requireRaidEditPermission", () => {
     });
 
     it("レイドが存在しなければバックエンドの 404 を返す", async () => {
-      backendRaid = null;
+      backend.setRaid(null);
       assert.strictEqual(await statusOf(privileged, { kind: "privileged" }), 404);
     });
 
@@ -117,15 +74,11 @@ describe("requireRaidEditPermission", () => {
     });
 
     it("オーナーは許可", async () => {
-      const owner: RaidEditSession = {
-        ...general,
-        guilds: [{ id: GUILD_ID, name: "Guild", owner: true, permissions: "0" }],
-      };
-      assert.strictEqual(await statusOf(owner, req), 200);
+      assert.strictEqual(await statusOf(ownerMember, req), 200);
     });
 
     it("特権ユーザーは終了済みレイドでも許可", async () => {
-      backendRaid = raid({ finishedAt: "2026-11-02T00:00:00Z" });
+      backend.setRaid(raid({ finishedAt: "2026-11-02T00:00:00Z" }));
       assert.strictEqual(await statusOf(privileged, req), 200);
     });
 
@@ -144,7 +97,7 @@ describe("requireRaidEditPermission", () => {
     });
 
     it("本人でも終了済みレイドは 403", async () => {
-      backendRaid = raid({ finishedAt: "2026-11-02T00:00:00Z" });
+      backend.setRaid(raid({ finishedAt: "2026-11-02T00:00:00Z" }));
       assert.strictEqual(await statusOf(general, { kind: "participant", targetUserId: SELF }), 403);
     });
 
@@ -154,7 +107,7 @@ describe("requireRaidEditPermission", () => {
 
     it("特権ユーザーは他人も操作できる（終了済みも可）", async () => {
       assert.strictEqual(await statusOf(privileged, { kind: "participant", targetUserId: OTHER }), 200);
-      backendRaid = raid({ finishedAt: "2026-11-02T00:00:00Z" });
+      backend.setRaid(raid({ finishedAt: "2026-11-02T00:00:00Z" }));
       assert.strictEqual(await statusOf(privileged, { kind: "participant", targetUserId: OTHER }), 200);
     });
 
