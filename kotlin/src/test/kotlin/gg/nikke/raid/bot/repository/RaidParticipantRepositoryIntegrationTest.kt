@@ -192,6 +192,47 @@ open class RaidParticipantRepositoryIntegrationTest(
         assertEquals(0L, raidParticipantRepository.deleteParticipant(raid.id, 92_000_003L))
     }
 
+    @Test
+    fun `参加者の1件取得_あれば返り他ユーザーと他レイドは返さず無ければnull`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaid(70_093_001L, now)
+        val otherRaid = createRaid(70_093_002L, now)
+        insertParticipant(raid.id, 93_000_001L, "target", 100, now)
+        insertParticipant(otherRaid.id, 93_000_002L, "other-raid", 200, now)
+
+        val found = raidParticipantRepository.findParticipantByRaidIdAndUserId(raid.id, 93_000_001L)
+
+        assertEquals("target", found?.username)
+        assertEquals(100, found?.score)
+        assertNull(raidParticipantRepository.findParticipantByRaidIdAndUserId(raid.id, 93_000_002L))
+        assertNull(raidParticipantRepository.findParticipantByRaidIdAndUserId(raid.id, 93_000_999L))
+    }
+
+    @Test
+    fun `スコア更新_対象のスコアだけ変わりユーザー名と参加時刻は変わらず1を返す`() {
+        val now = OffsetDateTime.now()
+        val raid = createRaid(70_093_003L, now)
+        insertParticipant(raid.id, 93_000_003L, "target", 100, now)
+        insertParticipant(raid.id, 93_000_004L, "other", 200, now)
+        val before = raidParticipantRepository.findParticipantByRaidIdAndUserId(raid.id, 93_000_003L)!!
+
+        val updated = raidParticipantRepository.updateParticipantScore(raid.id, 93_000_003L, 999)
+
+        assertEquals(1L, updated)
+        val after = raidParticipantRepository.findParticipantByRaidIdAndUserId(raid.id, 93_000_003L)!!
+        assertEquals(999, after.score)
+        assertEquals("target", after.username)
+        assertEquals(before.joinedAt?.toInstant(), after.joinedAt?.toInstant())
+        assertEquals(200, raidParticipantRepository.findParticipantByRaidIdAndUserId(raid.id, 93_000_004L)?.score)
+    }
+
+    @Test
+    fun `スコア更新_参加者でなければ0を返す`() {
+        val raid = createRaid(70_093_004L, OffsetDateTime.now())
+
+        assertEquals(0L, raidParticipantRepository.updateParticipantScore(raid.id, 93_000_005L, 10))
+    }
+
     private fun createRaid(guildId: Long, now: OffsetDateTime): UnionRaid {
         guildRepository.insertGuild(
             Guild(

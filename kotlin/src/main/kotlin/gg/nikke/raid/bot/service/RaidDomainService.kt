@@ -121,7 +121,9 @@ class RaidDomainService(
      * @param username ユーザー名（参加者の自動登録にも使う）
      * @param difficulty 難易度
      * @param now 報告の時刻（デフォルトは現在のUTC時刻）
-     * @return 報告結果を含む `Result`。レイドが存在しない場合は `RaidNotFound`、終了済みの場合は `RaidAlreadyFinished`
+     * @param allowFinished `true` なら終了済みレイドでも報告できる。`true` にするのは、終了済みレイドを操作してよいかを
+     *   呼び出し側（Web の BFF の権限判定）が確かめた場合だけ。Discord からは渡さない（既定の `false`）
+     * @return 報告結果を含む `Result`。レイドが存在しない場合は `RaidNotFound`、`allowFinished` が `false` で終了済みの場合は `RaidAlreadyFinished`
      * @throws IllegalStateException トランザクションの外で呼ばれた場合
      */
     @Transactional(rollbackFor = [Exception::class])
@@ -131,8 +133,10 @@ class RaidDomainService(
         username: String,
         difficulty: Difficulty,
         now: OffsetDateTime = TimeUtils.utcNow(),
+        allowFinished: Boolean = false,
     ): Result<ThreeTurnReportResult> {
-        lockActiveRaid(raidId).onFailure { return Result.failure(it) }
+        val lock = if (allowFinished) lockRaid(raidId) else lockActiveRaid(raidId)
+        lock.onFailure { return Result.failure(it) }
 
         val alreadyReported = raidReportRepository.findRaidReport(raidId, userId, difficulty.value) != null
 
@@ -208,7 +212,9 @@ class RaidDomainService(
      * @param raidId レイドのID
      * @param userId 取り消すユーザーのID（本人の報告のみ対象）
      * @param difficulties 取り消す難易度。空の場合は `NoDifficultySelected`
-     * @return 取り消し結果を含む `Result`。レイドが存在しない場合は `RaidNotFound`、終了済みの場合は `RaidAlreadyFinished`
+     * @param allowFinished `true` なら終了済みレイドでも取り消せる。`true` にするのは、終了済みレイドを操作してよいかを
+     *   呼び出し側（Web の BFF の権限判定）が確かめた場合だけ。Discord からは渡さない（既定の `false`）
+     * @return 取り消し結果を含む `Result`。レイドが存在しない場合は `RaidNotFound`、`allowFinished` が `false` で終了済みの場合は `RaidAlreadyFinished`
      * @throws IllegalStateException トランザクションの外で呼ばれた場合
      */
     @Transactional(rollbackFor = [Exception::class])
@@ -216,11 +222,13 @@ class RaidDomainService(
         raidId: Int,
         userId: Long,
         difficulties: Set<Difficulty>,
+        allowFinished: Boolean = false,
     ): Result<ThreeTurnCancelResult> {
         if (difficulties.isEmpty()) {
             return Result.failure(RaidDomainError.NoDifficultySelected)
         }
-        lockActiveRaid(raidId).onFailure { return Result.failure(it) }
+        val lock = if (allowFinished) lockRaid(raidId) else lockActiveRaid(raidId)
+        lock.onFailure { return Result.failure(it) }
 
         // 別のメニューで先に取り消された場合などに備え、実際に報告済みの難易度だけを対象にする
         val targets = findReportedDifficulties(raidId, userId).filter { it in difficulties }.toSet()
@@ -257,6 +265,75 @@ class RaidDomainService(
         val participantRemoved = raidParticipantRepository.deleteParticipant(raidId, userId) > 0L
 
         return Result.success(ParticipationCancelResult(participantRemoved, removedReportCount))
+    }
+
+    /**
+     * 参加者を指定のスコアとユーザー名で登録します（Web からの代理登録・本人登録用）。
+     *
+     * 終了済みレイドかどうかは判定しません。終了済みレイドを操作してよいか（特権ユーザーのみ可など）と、
+     * 操作者が本人か特権ユーザーかの確認は、呼び出し側（Web の BFF など）が必ず行うこと。
+     * 入力の検証は呼び出し側で済んでいること（`score` は 0 以上、`username` は空でなく 255 文字以内）。
+     *
+     * @param raidId レイドのID
+     * @param userId 登録するユーザーのID
+     * @param username ユーザー名
+     * @param score スコア（0 以上。呼び出し側で検証済み）
+     * @param now 参加時刻（デフォルトは現在のUTC時刻）
+     * @return 登録した参加者を含む `Result`。レイドが存在しない場合は `RaidNotFound`、既に参加者の場合は `ParticipantAlreadyExists`（何も変更しない）
+     * @throws IllegalStateException トランザクションの外で呼ばれた場合
+     */
+    @Transactional(rollbackFor = [Exception::class])
+    fun registerParticipant(
+        raidId: Int,
+        userId: Long,
+        username: String,
+        score: Int,
+        now: OffsetDateTime = TimeUtils.utcNow(),
+    ): Result<RaidParticipant> {
+        lockRaid(raidId).onFailure { return Result.failure(it) }
+
+        val inserted = raidParticipantRepository.insertParticipantIfAbsent(
+            RaidParticipant(
+                raidId = raidId,
+                userId = userId,
+                username = username,
+                score = score,
+                joinedAt = now,
+            )
+        )
+        if (inserted == 0L) {
+            return Result.failure(RaidDomainError.ParticipantAlreadyExists)
+        }
+
+        val participant = raidParticipantRepository.findParticipantByRaidIdAndUserId(raidId, userId)
+            ?: error("挿入直後の参加者が見つからない")
+        return Result.success(participant)
+    }
+
+    /**
+     * 参加者のスコアだけを更新します。`username` と `joined_at` は変更しません。
+     *
+     * 終了済みレイドかどうかは判定しません。終了済みレイドを操作してよいか（特権ユーザーのみ可など）と、
+     * 操作者が本人か特権ユーザーかの確認は、呼び出し側（Web の BFF など）が必ず行うこと。
+     *
+     * @param raidId レイドのID
+     * @param userId 更新する参加者のユーザーID
+     * @param score 新しいスコア（0 以上。呼び出し側で検証済み）
+     * @return 更新後の参加者を含む `Result`。レイドが存在しない場合は `RaidNotFound`、参加者でない場合は `ParticipantNotFound`
+     * @throws IllegalStateException トランザクションの外で呼ばれた場合
+     */
+    @Transactional(rollbackFor = [Exception::class])
+    fun updateParticipantScore(raidId: Int, userId: Long, score: Int): Result<RaidParticipant> {
+        lockRaid(raidId).onFailure { return Result.failure(it) }
+
+        val updated = raidParticipantRepository.updateParticipantScore(raidId, userId, score)
+        if (updated == 0L) {
+            return Result.failure(RaidDomainError.ParticipantNotFound)
+        }
+
+        val participant = raidParticipantRepository.findParticipantByRaidIdAndUserId(raidId, userId)
+            ?: error("更新直後の参加者が見つからない")
+        return Result.success(participant)
     }
 
     /**

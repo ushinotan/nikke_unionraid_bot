@@ -99,3 +99,27 @@ data class GuildMemberDto(
     val displayName: String,
     val avatarUrl: String
 )
+
+/**
+ * 3T 報告のレスポンス
+ */
+data class ThreeTurnReportResponse(
+    val alreadyReported: Boolean,
+    val participantRegistered: Boolean
+)
+
+/**
+ * 3T 報告取り消しのレスポンス
+ */
+data class ThreeTurnCancelResponse(
+    val cancelledDifficulties: List<String>,
+    val participantRemoved: Boolean
+)
+
+/**
+ * 参加取り消しのレスポンス
+ */
+data class ParticipationCancelResponse(
+    val participantRemoved: Boolean,
+    val removedReportCount: Long
+)

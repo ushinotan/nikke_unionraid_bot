@@ -660,6 +660,159 @@ open class RaidDomainServiceTest(
         assertEquals(1L, result.removedReportCount)
     }
 
+    // ----------------------------------------------------------------
+    // registerParticipant
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `参加登録_未参加なら指定のスコアとユーザー名で登録される`() {
+        val raid = createActiveRaid(70_093_101L)
+        val now = OffsetDateTime.now()
+
+        val participant = raidDomainService.registerParticipant(raid.id, 93_100_001L, "ニック", 12345, now).getOrThrow()
+
+        assertEquals("ニック", participant.username)
+        assertEquals(12345, participant.score)
+        assertEquals(
+            now.toInstant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS),
+            participant.joinedAt?.toInstant()?.truncatedTo(java.time.temporal.ChronoUnit.MILLIS),
+        )
+        assertEquals(1, raidParticipantRepository.findParticipantsByRaidId(raid.id).size)
+    }
+
+    @Test
+    fun `参加登録_既に参加者ならParticipantAlreadyExistsエラーになりスコアは変わらない`() {
+        val raid = createActiveRaid(70_093_102L)
+        raidDomainService.registerParticipant(raid.id, 93_100_002L, "first", 100).getOrThrow()
+
+        val result = raidDomainService.registerParticipant(raid.id, 93_100_002L, "second", 999)
+
+        assertInstanceOf(RaidDomainError.ParticipantAlreadyExists::class.java, result.exceptionOrNull())
+        val participant = raidParticipantRepository.findParticipantByRaidIdAndUserId(raid.id, 93_100_002L)!!
+        assertEquals("first", participant.username)
+        assertEquals(100, participant.score)
+    }
+
+    @Test
+    fun `参加登録_3凸報告だけで参加者の行が無いユーザーも登録できる`() {
+        val raid = createActiveRaid(70_093_103L)
+        val userId = 93_100_003L
+        raidReportRepository.saveRaidReport(
+            RaidReport(raidId = raid.id, userId = userId, username = "legacy", difficulty = Difficulty.NORMAL.value),
+        )
+
+        val participant = raidDomainService.registerParticipant(raid.id, userId, "legacy", 500).getOrThrow()
+
+        assertEquals(500, participant.score)
+        assertTrue(raidDomainService.hasReported(raid.id, userId, Difficulty.NORMAL))
+    }
+
+    @Test
+    fun `参加登録_終了済みレイドでも登録できる`() {
+        val raid = createActiveRaid(70_093_104L)
+        raidDomainService.finishRaid(raidId = raid.id)
+
+        val result = raidDomainService.registerParticipant(raid.id, 93_100_004L, "late", 10)
+
+        assertTrue(result.isSuccess)
+    }
+
+    @Test
+    fun `参加登録_存在しないレイドはRaidNotFoundエラーになる`() {
+        val result = raidDomainService.registerParticipant(Int.MAX_VALUE, 93_100_005L, "user", 10)
+
+        assertInstanceOf(RaidDomainError.RaidNotFound::class.java, result.exceptionOrNull())
+    }
+
+    // ----------------------------------------------------------------
+    // updateParticipantScore
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `スコア更新_参加者のスコアだけが変わりユーザー名と参加時刻は変わらない`() {
+        val raid = createActiveRaid(70_093_111L)
+        val before = raidDomainService.registerParticipant(raid.id, 93_100_011L, "name", 100).getOrThrow()
+
+        val after = raidDomainService.updateParticipantScore(raid.id, 93_100_011L, 2000).getOrThrow()
+
+        assertEquals(2000, after.score)
+        assertEquals("name", after.username)
+        assertEquals(before.joinedAt?.toInstant(), after.joinedAt?.toInstant())
+        assertEquals(before.id, after.id)
+    }
+
+    @Test
+    fun `スコア更新_参加者でなければParticipantNotFoundエラーになる`() {
+        val raid = createActiveRaid(70_093_112L)
+
+        val result = raidDomainService.updateParticipantScore(raid.id, 93_100_012L, 10)
+
+        assertInstanceOf(RaidDomainError.ParticipantNotFound::class.java, result.exceptionOrNull())
+        assertTrue(raidParticipantRepository.findParticipantsByRaidId(raid.id).isEmpty())
+    }
+
+    @Test
+    fun `スコア更新_終了済みレイドでも更新できる`() {
+        val raid = createActiveRaid(70_093_113L)
+        raidDomainService.registerParticipant(raid.id, 93_100_013L, "name", 100).getOrThrow()
+        raidDomainService.finishRaid(raidId = raid.id)
+
+        val after = raidDomainService.updateParticipantScore(raid.id, 93_100_013L, 300).getOrThrow()
+
+        assertEquals(300, after.score)
+    }
+
+    @Test
+    fun `スコア更新_存在しないレイドはRaidNotFoundエラーになる`() {
+        val result = raidDomainService.updateParticipantScore(Int.MAX_VALUE, 93_100_014L, 10)
+
+        assertInstanceOf(RaidDomainError.RaidNotFound::class.java, result.exceptionOrNull())
+    }
+
+    // ----------------------------------------------------------------
+    // reportThreeTurn（allowFinished）
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `3凸報告_allowFinishedなら終了済みレイドでも報告と自動参加ができる`() {
+        val raid = createActiveRaid(70_093_121L)
+        raidDomainService.finishRaid(raidId = raid.id)
+
+        val result = raidDomainService.reportThreeTurn(
+            raidId = raid.id,
+            userId = 93_100_021L,
+            username = "user",
+            difficulty = Difficulty.HARD,
+            allowFinished = true,
+        ).getOrThrow()
+
+        assertTrue(result.participantRegistered)
+        assertTrue(raidDomainService.hasReported(raid.id, 93_100_021L, Difficulty.HARD))
+        assertEquals(1, raidParticipantRepository.findParticipantsByRaidId(raid.id).size)
+    }
+
+    // ----------------------------------------------------------------
+    // cancelThreeTurnReports（allowFinished）
+    // ----------------------------------------------------------------
+
+    @Test
+    fun `報告取り消し_allowFinishedなら終了済みレイドでも取り消せて報告0件なら参加者も削除される`() {
+        val raid = createActiveRaid(70_093_131L)
+        raidDomainService.reportThreeTurn(raid.id, 93_100_031L, "user", Difficulty.NORMAL)
+        raidDomainService.finishRaid(raidId = raid.id)
+
+        val result = raidDomainService.cancelThreeTurnReports(
+            raidId = raid.id,
+            userId = 93_100_031L,
+            difficulties = setOf(Difficulty.NORMAL),
+            allowFinished = true,
+        ).getOrThrow()
+
+        assertEquals(setOf(Difficulty.NORMAL), result.cancelled)
+        assertTrue(result.participantRemoved)
+        assertTrue(raidParticipantRepository.findParticipantsByRaidId(raid.id).isEmpty())
+    }
+
     private fun createActiveRaid(guildId: Long): gg.nikke.raid.bot.entity.UnionRaid {
         val now = OffsetDateTime.now()
         guildRepository.insertGuild(Guild(guildId = guildId, createdAt = now))
