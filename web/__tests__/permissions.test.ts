@@ -11,7 +11,7 @@ import type { GuildMetadata, SessionData } from "../lib/session";
 const GUILD_ID = "111111111111111111";
 /** テストの現在時刻（固定） */
 const NOW = Date.UTC(2026, 10, 1);
-/** 有効期限を過ぎた時刻（ログインから 1 時間ちょうど） */
+/** 有効期限を過ぎた時刻（ログインから 1 日ちょうど） */
 const EXPIRED = NOW + PRIVILEGE_MAX_AGE_MS;
 
 function sessionWith(guild: Partial<GuildMetadata>): Pick<SessionData, "guilds" | "loggedInAt"> {
@@ -23,11 +23,11 @@ describe("isPermissionStale", () => {
     assert.strictEqual(isPermissionStale({ loggedInAt: NOW }, NOW), false);
   });
 
-  it("1 時間ちょうど経っていたら true", () => {
+  it("1 日ちょうど経っていたら true", () => {
     assert.strictEqual(isPermissionStale({ loggedInAt: NOW }, NOW + PRIVILEGE_MAX_AGE_MS), true);
   });
 
-  it("1 時間より 1 ミリ秒前なら false", () => {
+  it("1 日より 1 ミリ秒前なら false", () => {
     assert.strictEqual(isPermissionStale({ loggedInAt: NOW }, NOW + PRIVILEGE_MAX_AGE_MS - 1), false);
   });
 
@@ -107,11 +107,11 @@ describe("isPrivileged", () => {
     assert.strictEqual(isPrivileged(sessionWith({ owner: false, permissions: " 32 " }), GUILD_ID, NOW), false);
   });
 
-  it("1 時間を過ぎたオーナーなら false", () => {
+  it("1 日を過ぎたオーナーなら false", () => {
     assert.strictEqual(isPrivileged(sessionWith({ owner: true, permissions: "0" }), GUILD_ID, EXPIRED), false);
   });
 
-  it("1 時間を過ぎた ADMINISTRATOR / MANAGE_GUILD なら false", () => {
+  it("1 日を過ぎた ADMINISTRATOR / MANAGE_GUILD なら false", () => {
     assert.strictEqual(isPrivileged(sessionWith({ owner: false, permissions: "8" }), GUILD_ID, EXPIRED), false);
     assert.strictEqual(isPrivileged(sessionWith({ owner: false, permissions: "32" }), GUILD_ID, EXPIRED), false);
   });

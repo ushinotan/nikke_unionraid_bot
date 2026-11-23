@@ -13,10 +13,10 @@ function hasPermission(permissions: string | undefined, flag: bigint): boolean {
 }
 
 /**
- * セッションの権限情報（owner / permissions）を信用する時間（1 時間）。
+ * セッションの権限情報（owner / permissions）を信用する時間（1 日）。
  * loggedInAt からこの時間を過ぎたら、特権ユーザーとして扱わない（再ログインで取り直す）。
  */
-export const PRIVILEGE_MAX_AGE_MS = 60 * 60 * 1000;
+export const PRIVILEGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * セッションの権限情報が古い（または取得時刻が無い）なら true。

@@ -10,7 +10,7 @@ const SELF = "900000000000000001";
 const OTHER = "900000000000000002";
 /** テストの現在時刻（固定）。セッションの loggedInAt もこの時刻にする */
 const NOW = Date.UTC(2026, 10, 1);
-/** 有効期限を過ぎた時刻（ログインから 1 時間ちょうど） */
+/** 有効期限を過ぎた時刻（ログインから 1 日ちょうど） */
 const EXPIRED = NOW + PRIVILEGE_MAX_AGE_MS;
 
 function raid(overrides: Partial<RaidSummaryDto> = {}): RaidSummaryDto {

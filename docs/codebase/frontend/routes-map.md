@@ -22,4 +22,4 @@
 ## 書き込み系を追加するとき
 `lib/raid-authorization.ts` の `requireRaidEditPermission` を必ず通す。`targetUserId` は実際に書き込むレコードの持ち主から取り、
 クライアントから来たギルド ID などで判定しない（ファイル先頭のコメント参照）。
-権限情報は `loggedInAt` から 1 時間（`PRIVILEGE_MAX_AGE_MS`）で失効し、特権が要る操作は 403 `REAUTH_REQUIRED`（再ログインで解決する可能性あり）になる。
+権限情報は `loggedInAt` から 1 日（`PRIVILEGE_MAX_AGE_MS`）で失効し、特権が要る操作は 403 `REAUTH_REQUIRED`（再ログインで解決する可能性あり）になる。

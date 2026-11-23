@@ -163,7 +163,7 @@ if (!auth.ok) return auth.response; // 401 / 400 / 403（FORBIDDEN / REAUTH_REQU
 - `privileged`: 特権ユーザー（オーナー / `ADMINISTRATOR` / `MANAGE_GUILD`）のみ
 - `participant`: `canEditParticipant` で判定（本人は進行中レイドのみ、特権ユーザーは終了済みを含め全員分）
 - 所属していないギルドのレイドは常に 403
-- 権限情報（オーナー / 権限ビット）はログイン時にセッションへ保存し、`loggedInAt` から `PRIVILEGE_MAX_AGE_MS`（`lib/permissions.ts`、1 時間）を過ぎると特権ユーザーとして扱いません（`loggedInAt` が無い古いセッションも同様）。権限を外されたユーザーは最大 1 時間で特権を失います
+- 権限情報（オーナー / 権限ビット）はログイン時にセッションへ保存し、`loggedInAt` から `PRIVILEGE_MAX_AGE_MS`（`lib/permissions.ts`、1 日）を過ぎると特権ユーザーとして扱いません（`loggedInAt` が無い古いセッションも同様）。権限を外されたユーザーは最大 1 日で特権を失います
 - 期限切れで特権として扱えないときは 403 `{ error: "REAUTH_REQUIRED" }` を返します。「再ログインで解決する可能性がある」という意味で、権限が古い一般メンバーにも返ります。再ログイン後に権限が無ければ `FORBIDDEN` になります
 - `participant` の `targetUserId` は、**実際に書き込むレコードの持ち主**から取ってください
   - 自分の分を作成・更新するルートでは、`targetUserId` もバックエンドに送るユーザー ID も `auth.userId` を使う
