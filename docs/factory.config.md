@@ -94,8 +94,22 @@ product:
 dev:
   developer_split: true         # backend (kotlin) and frontend (web) are separate apps
   doc_sync_order:  after_self_test
-  retries:         3
+  retries:         2
   commit: { by: doc_sync, push: mr }   # confirmed — DEV opens a PR to develop at the end
+
+models:                         # omitted roles use the plugin defaults (CONTRACT.md "Models per role")
+  dev.tech_lead: opus
+  dev.code_reviewer: opus
+  dev.developer: sonnet         # heavy tasks: pass --model dev.developer=opus
+  qa.planner: opus
+  qa.backend: sonnet
+  qa.frontend: sonnet
+  qa.runner: haiku
+  po.blueprint: opus
+  po.researcher: sonnet
+  po.codemap: sonnet
+  po.tasks: haiku
+  cr.security: opus
 ---
 
 # Project notes
