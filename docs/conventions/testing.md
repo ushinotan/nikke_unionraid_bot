@@ -13,7 +13,7 @@ docker compose up -d db
 ```
 
 ```bash
-set -a && . ./.env && set +a && cd kotlin && ./gradlew test --no-daemon
+set -a && . ./.env && set +a && cd kotlin && ./gradlew test
 ```
 
 - 置き場所は本体と同じパッケージ（`kotlin/src/test/kotlin/gg/nikke/raid/bot/<層>/`）。
@@ -94,3 +94,14 @@ cd web && npm run test:e2e
 - **必須**: 検査を追加・変更したら、すり抜けるはずの例と通るはずの例を一時ファイルで用意して実際にテストを流し、結果を PR に書く。一時ファイルは確認後に消す。
 - **必須**: 検査では分からないことを docs に書き、それを担保する別のテスト（ルートごとの挙動テストなど）を示す。
 - **推奨**: 検査とモックで同じ定数（例: 書き込みとして扱う HTTP メソッド）を二重に定義せず、片方から import する。
+
+### プローブの回し方
+
+プローブは、テストが落ちるはずの一時的な変更（すり抜け例）と通るはずの変更を当てて、テストの結果を確かめる作業です。
+
+- **必須**: 作業ツリーをコピーせず、今の作業ツリーのファイルを直接書き換えて回し、終わったら元に戻す。コピーすると `kotlin/build`・`web/.next`・Gradle のキャッシュが効かず、毎回コンパイルからやり直しになる。
+- **必須**: 書き換える前に `git status --porcelain` と `git diff | sha256sum` を控え、戻したあとに同じになったことを確かめて、その結果を書く。プローブ用に足したファイルも消す。
+- **必須**: `git stash` は使わない。stash は main のチェックアウトと全 worktree で共有されていて、ほかのセッションの退避を取り出してしまうことがある。退避が要るときは `git diff > <scratchpad>/before.patch` で控える。
+- backend は Gradle daemon を使う（`--no-daemon` を付けない）。`kotlin/gradle.properties` で build cache も有効にしてある。
+- 回すテストは、そのプローブが落とすはずのテストに絞る。backend は `./gradlew test --tests '<クラス名>'`、frontend は `node --import tsx --test __tests__/<file>.test.ts`、E2E は `npx playwright test e2e/<spec>.spec.ts`。変更なしの全件実行（基準）は 1 回だけにする。
+- E2E は `webServer` が毎回 `npm run build` を走らせる。落とすはずのテストが同じなら、複数のプローブを 1 回の実行にまとめず、spec を絞って回す。
