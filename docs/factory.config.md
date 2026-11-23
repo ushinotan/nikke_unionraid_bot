@@ -48,7 +48,7 @@ stack:
     e2e:   TBD                  # no evidence — no cypress/playwright; web has only node:test unit tests (web/__tests__)
     build: 'cd web && npm run build'
     lint:  'cd web && npm run lint'
-  arch_notes_doc: kotlin/docs/API.md
+  arch_notes_doc: docs/codebase/overview.md   # REST API details: kotlin/docs/API.md
 
 env:
   app_url: http://localhost:3000   # docker-compose.yml web
@@ -74,12 +74,12 @@ evidence:
 tests:
   dir: .
   layout:
-    backend:  'kotlin/src/test/kotlin/gg/nikke/raid/bot/{controller,service,repository,util,config}/*Test.kt'
+    backend:  'kotlin/src/test/kotlin/gg/nikke/raid/bot/{bot,config,controller,repository,service,util}/*Test.kt'
     frontend: 'web/__tests__/*.test.ts'
   seeder: init.sql
 
 docs_map:
-  codebase:    TBD              # no CodeBase map folder (only README.md, DEPLOYMENT.md, kotlin/docs/API.md)
+  codebase:    docs/codebase
   conventions: TBD              # no docs/conventions; web/CLAUDE.md → web/AGENTS.md has Next.js agent rules only
 
 product:
