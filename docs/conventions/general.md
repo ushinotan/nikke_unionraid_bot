@@ -43,6 +43,7 @@ chore🔒(ci): pr-test の GITHUB_TOKEN 権限を contents: read に制限
 
 - **必須**: `.github/pull_request_template.md`（機能は `feature.md`、バグ修正は `bugfix.md`）を埋める。
 - **必須**: CI（`.github/workflows/pr-test.yml`）が通ってからマージする。
+- **必須**: 認証・権限・セッション・API ルートに触れる変更をレビューするときは、チェックリストを確認するだけでなく、すり抜ける入力や書き方を具体的に考えて試す（例: 権限の無いユーザー、別ギルドの ID、ガードを呼ぶだけで結果を見ないハンドラー）。
 - **必須**: DB スキーマ、環境変数、REST API の形を変えたら、PR の「影響範囲」に書く。
 - **必須**: `docs/codebase/` の地図と食い違う変更をしたら、同じ PR で地図も直す。
 
