@@ -10,4 +10,5 @@
 | `lib/api-types.ts` | `GuildDto`、`RaidSummaryDto`、`ParticipantDto`、`RaidReportDto`、`RaidDetailResponse` など | バックエンドの DTO（`dto/ApiResponses.kt`）に合わせた型 |
 
 ## テスト
-`web/__tests__/*.test.ts`（`node:test` + tsx、`npm test`）: `backend-client`、`origin`、`permissions`、`proxy`、`raid-authorization`、`session`。
+`web/__tests__/*.test.ts`（`node:test` + tsx、`npm test`）: `backend-client`、`origin`、`permissions`、`proxy`、`raid-authorization`、`session`、`write-route-guard`（書き込みルートが `requireRaidEditPermission` を通るかのガード。文字列一致のため再 export / コメント内の呼び出しは検出できない）。
+テスト用フィクスチャ・`mockBackend` は `web/__tests__/helpers/raid-edit-fixtures.ts`（`.test.ts` で終わらないので `npm test` では実行されない）。
