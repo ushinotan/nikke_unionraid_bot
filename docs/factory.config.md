@@ -100,6 +100,7 @@ dev:
 models:                         # omitted roles use the plugin defaults (CONTRACT.md "Models per role")
   dev.tech_lead: opus
   dev.code_reviewer: opus
+  dev.developer: sonnet         # heavy tasks: pass --model dev.developer=opus
 ---
 
 # Project notes
