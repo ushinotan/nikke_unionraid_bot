@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.context.WebApplicationContext
 import java.math.BigDecimal
 import java.time.OffsetDateTime
@@ -43,7 +44,9 @@ class RaidApiControllerTest(
     @Test
     fun `GET guilds - ギルド一覧を取得できる`() {
         val now = OffsetDateTime.now()
-        
+        // 共有の開発用 DB には実データのギルドが残っていることがあるため、件数は差分で確認する
+        val existingCount = guildRepository.findAllGuilds().size
+
         // テストデータ作成
         guildRepository.insertGuild(Guild(guildId = 100_000_001L, createdAt = now))
         guildRepository.insertGuild(Guild(guildId = 100_000_002L, createdAt = now))
@@ -51,7 +54,7 @@ class RaidApiControllerTest(
         mockMvc.perform(get("/api/guilds"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.guilds").isArray)
-            .andExpect(jsonPath("$.guilds.length()").value(2))
+            .andExpect(jsonPath("$.guilds.length()").value(existingCount + 2))
             .andExpect(jsonPath("$.guilds[?(@.guildId == '100000001')]").exists())
             .andExpect(jsonPath("$.guilds[?(@.guildId == '100000002')]").exists())
             // Snowflake IDが文字列としてシリアライズされることを確認
@@ -60,6 +63,12 @@ class RaidApiControllerTest(
 
     @Test
     fun `GET guilds - ギルドが存在しない場合は空配列を返す`() {
+        // 実データのギルドが残っていても空の状態を作る。テストのトランザクション内で消すのでロールバックされる
+        check(TransactionSynchronizationManager.isActualTransactionActive()) {
+            "実データを消さないよう、トランザクション内でのみ実行する"
+        }
+        guildRepository.findAllGuilds().forEach { guildRepository.deleteGuildById(it.guildId) }
+
         mockMvc.perform(get("/api/guilds"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.guilds").isArray)
