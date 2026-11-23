@@ -11,4 +11,5 @@
 
 ## テスト
 `web/__tests__/*.test.ts`（`node:test` + tsx、`npm test`）: `backend-client`、`origin`、`permissions`、`proxy`、`raid-authorization`、`session`、`write-route-guard`（書き込みルートが `requireRaidEditPermission` を通るかのガード。文字列一致のため再 export / コメント内の呼び出しは検出できない）。
+E2E（Playwright、Chromium）は `web/e2e/*.spec.ts`、モックバックエンドとクッキー生成は `web/e2e/support/`（`npm run test:e2e`。詳しくは `docs/conventions/testing.md`）。
 テスト用フィクスチャ・`mockBackend` は `web/__tests__/helpers/raid-edit-fixtures.ts`（`.test.ts` で終わらないので `npm test` では実行されない）。

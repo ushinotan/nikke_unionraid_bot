@@ -2,7 +2,7 @@
 
 ## スタック
 - backend（`kotlin/`）: Kotlin 2.3 + Spring Boot 4、JDA 6（Discord ボット）、Komapper 6（JDBC、KSP でメタモデル生成）、PostgreSQL 16。テストは JUnit 5。
-- frontend（`web/`）: Next.js 16（App Router）+ React 19 + Tailwind CSS 4、iron-session。テストは `node:test`（`web/__tests__/`）。
+- frontend（`web/`）: Next.js 16（App Router）+ React 19 + Tailwind CSS 4、iron-session。テストは `node:test`（`web/__tests__/`）と Playwright E2E（`web/e2e/`、`npm run test:e2e`）。
 - 実行環境: `docker-compose.yml` で `bot`（8080）、`web`（3000）、`db`（5432）。本番は Railway（`DEPLOYMENT.md`）。
 
 ## 構成
