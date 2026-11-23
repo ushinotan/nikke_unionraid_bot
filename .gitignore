@@ -43,3 +43,6 @@ web/out/
 web/node_modules/
 web/.env*.local
 web/.vercel
+
+# factory: per-attempt diffs used to narrow probes and reviews (#132)
+.factory-tmp/

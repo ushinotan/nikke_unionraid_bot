@@ -57,7 +57,7 @@ env:
 docker:
   compose:   docker-compose.yml   # used as `docker compose -f <file>`
   ensure_up: true               # confirmed — needs a .env with a real DISCORD_TOKEN and INTERNAL_API_TOKEN
-  run:       'set -a && . ./.env && set +a && cd kotlin && ./gradlew test --no-daemon'   # backend; loads POSTGRES_* from .env (app default password is empty) and uses the compose DB (init.sql applied by the bot container)
+  run:       'set -a && . ./.env && set +a && cd kotlin && ./gradlew test'   # backend; loads POSTGRES_* from .env (app default password is empty) and uses the compose DB (init.sql applied by the bot container). Uses the Gradle daemon and build cache (kotlin/gradle.properties) so probes and retries reuse compiled output; CI keeps --no-daemon
   run_frontend: 'cd web && npm test'
 
 evidence:
@@ -127,4 +127,14 @@ models:                         # omitted roles use the plugin defaults (CONTRAC
 Added after #109 / PR #127, where the factory review approved the diff but the PR review then found about 20 issues (bypasses and false positives in a guard test).
 - **Stack reviewers after the factory code-review.** The `dev-code-reviewer` agent cannot spawn sub-agents, so the orchestrator does it. When the code-reviewer returns `APPROVED` or `APPROVED_WITH_NOTES`, run the reviewers from the user's CLAUDE.md on the uncommitted diff, in parallel: `typescript-reviewer` (`web/**/*.ts`), `react-reviewer` (`*.tsx`), `kotlin-reviewer` (`*.kt`), `database-reviewer` (`init.sql`, `migrations/`, DB access), and `security-reviewer` when the task touches auth, sessions, permissions, API routes or secrets. Merge the findings into `{DIR}/code-review-{id}-{attempt}.md`. A critical or high finding counts as `REJECTED` (back to the developer, consumes a retry). Medium and low findings go into the final report as 🟡.
 - **Safety-net code** (guard tests, static checks, permission helpers) follows `docs/conventions/testing.md` → "静的検査・ガードテスト". The tech-lead plans it fail-closed and AST-based, and lists concrete bypass cases and must-pass cases in the plan checklist. The developer runs those probes. The code-reviewer runs them again and reports each result. "Accepted as a limitation in the plan" is not a reason to skip a probe.
+- **How probes run.** Probes edit the current worktree in place and revert afterwards, with the Gradle daemon. Never copy the tree and never use `git stash` (the stash is shared by every worktree and session). Details: `docs/conventions/testing.md` → "プローブの回し方".
 - **Narrowed scope.** When the tech-lead narrows the issue's acceptance criteria, ask the human before the developer starts. The PR body then says which criteria moved to which issue.
+
+# DEV retry speed-up (orchestrator instructions)
+Added in #132 because `/factory:dev` runs were slow: attempts 2+ re-ran every probe and re-reviewed the whole diff.
+- **Probe → files map.** The tech-lead lists, for each probe, the files it touches or depends on (e.g. `P1 → web/proxy.ts`) and the tests it should break.
+- **Keep a diff per attempt.** After each developer run, the orchestrator saves `git diff` (plus untracked files, via `git add -N`) as `.factory-tmp/attempt-{id}-{attempt}.patch` (gitignored, so doc-sync does not commit it). The next attempt diffs the two patches to find the files that changed between attempts.
+- **Re-run only affected probes.** On attempt 2+, the developer and the code-reviewer re-run only the probes whose mapped files changed since the previous attempt, plus probes that failed or were added. Probes not re-run are reported as "carried over from attempt N" with the previous result. Only the selected tests run (`--tests`, a single spec), and the unchanged baseline runs once.
+- **Full run on the final attempt.** When the code-reviewer is about to return `APPROVED` or `APPROVED_WITH_NOTES`, it first runs every probe once more, so the approved diff always has a full probe result.
+- **Diff-only re-review.** On attempt 2+, the code-reviewer reviews the diff since the previous attempt and checks each previous finding. Items marked ✅ in the previous report are not re-reviewed unless their files changed. The stack reviewers run only for file types that changed since the previous attempt (`security-reviewer` only if the change touches auth, sessions, permissions, API routes or secrets again).
+- **Measure.** Each code-review report records the wall time of its probe runs, so runs before and after #132 can be compared.
