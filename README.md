@@ -70,7 +70,7 @@ Bot をサーバーへ招待する際は、スコープに `bot` と `applicatio
 
 ### Privileged Gateway Intents
 
-メンバー一覧 API（`GET /api/guilds/{guildId}/members`）のため、Developer Portal の `Bot` タブで **`Server Members Intent`**（`GUILD_MEMBERS`）を ON にする必要があります（OFF のままだと bot が起動できません）。既存の Bot の再招待は不要です。参加サーバーが 100 を超える場合は、Discord による Privileged Intent の審査（認証）が必要です。
+メンバー一覧 API（`GET /api/guilds/{guildId}/members`）のため、Developer Portal の `Bot` タブで **`Server Members Intent`**（`GUILD_MEMBERS`）を ON にする必要があります（OFF のままだと bot が起動できません）。既存の Bot の再招待は不要です。Bot が 10,000 人以上のユーザーにリーチすると、この Intent の利用に Discord の審査が必要になります。
 
 ## よく使うコマンド
 
