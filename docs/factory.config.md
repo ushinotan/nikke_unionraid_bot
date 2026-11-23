@@ -80,7 +80,7 @@ tests:
 
 docs_map:
   codebase:    docs/codebase
-  conventions: TBD              # no docs/conventions; web/CLAUDE.md → web/AGENTS.md has Next.js agent rules only
+  conventions: docs/conventions
 
 product:
   domain: "Discord bot + web dashboard for managing NIKKE Union Raid participation, 3T reports and rankings"
