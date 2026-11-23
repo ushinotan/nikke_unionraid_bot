@@ -82,3 +82,20 @@ data class ErrorResponse(
     val message: String,
     val timestamp: OffsetDateTime = OffsetDateTime.now()
 )
+
+/**
+ * ギルドメンバー一覧レスポンス
+ */
+data class GuildMembersResponse(
+    val members: List<GuildMemberDto>,
+    val truncated: Boolean
+)
+
+/**
+ * ギルドメンバー情報
+ */
+data class GuildMemberDto(
+    val userId: String,
+    val displayName: String,
+    val avatarUrl: String
+)

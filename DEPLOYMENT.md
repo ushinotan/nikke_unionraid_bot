@@ -54,6 +54,7 @@
    この値は `DISCORD_REDIRECT_URI` と**完全に一致**している必要があります（スキーム、ホスト、末尾のスラッシュの有無まで）。
    なお、Web ログイン時に要求するスコープは `identify guilds` です。
 4. **Bot の招待**: スコープに `bot` と `applications.commands` を指定して、サーバーに招待します。必要な権限は README の「[Discord Bot の必要権限](README.md#discord-bot-の必要権限)」を参照してください。
+5. **Server Members Intent を ON にする**: `Bot` タブの `Privileged Gateway Intents` で `Server Members Intent` を ON にして保存します。Web のメンバー選択（`GET /api/guilds/{guildId}/members`）に必要です。Bot の再招待は不要です。OFF のままだと bot が起動時に Discord から切断されます（close code 4014 / `Disallowed intents`）。
 
 > スラッシュコマンドはグローバル登録されるため、Discord 側に反映されるまで最大 1 時間かかることがあります。
 > `DEV_GUILD_ID` を設定すると、そのギルドにだけ即時登録されます。これは開発用の設定なので、本番では設定しないでください。
@@ -283,6 +284,7 @@ gunzip -c backup-YYYY-MM-DD.sql.gz | psql "<接続 URL>"
 | bot が `Waiting for database... (30/30)` のあと終了する | `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` が間違っています。デフォルトの `db` は compose 専用なので、Railway では参照変数で設定します |
 | bot は起動したが、DB エラーで停止する | `DATABASE_URL` が JDBC 形式（`jdbc:postgresql://...`）になっているか、`psql` 用の変数と同じ DB を指しているかを確認します |
 | bot が Discord の READY を待つ途中でタイムアウトし、起動を中止する | `DISCORD_TOKEN` が正しいか、Discord に障害が起きていないかを確認します |
+| bot が起動時に `Disallowed intents`（close code 4014）で停止し、起動メッセージに「Developer Portal で Server Members Intent が ON か確認してください。」と出る | Developer Portal の `Bot` タブで `Server Members Intent` を ON にして保存し、bot を再起動します（Bot の再招待は不要） |
 | web で API が 401 になる | bot と web の `INTERNAL_API_TOKEN` が一致していません（値の前後の空白や改行にも注意） |
 | web で API が 5xx やタイムアウトになる | `BACKEND_URL` のホスト・ポート（8080）が間違っているか、bot が停止しています。Railway では Private Networking のホスト名を使います |
 | Discord ログインで `Invalid OAuth2 redirect_uri` が出る | `DISCORD_REDIRECT_URI` と Developer Portal の Redirect URI が一致していません |

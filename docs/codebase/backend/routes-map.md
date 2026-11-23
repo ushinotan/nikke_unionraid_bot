@@ -1,7 +1,7 @@
 # ルート（backend）
 
 ## REST API
-`controller/RaidApiController.kt`（`/api`）と `controller/HealthController.kt`。レスポンス DTO は `dto/ApiResponses.kt`、変換は `dto/DtoMappers.kt`。
+`controller/RaidApiController.kt`（`/api`）、`controller/GuildMemberApiController.kt`（`/api`）、`controller/HealthController.kt`。レスポンス DTO は `dto/ApiResponses.kt`、変換は `dto/DtoMappers.kt`。
 詳しい仕様は `kotlin/docs/API.md`。
 
 | メソッド | ルート | 認証 | 処理 |
@@ -9,6 +9,7 @@
 | GET | `/health` | なし | 死活確認 |
 | GET | `/api/guilds` | `InternalApiTokenFilter` | `GuildRepository.findAllGuilds` → `GuildsResponse` |
 | GET | `/api/guilds/{guildId}/raids` | 同上 | `UnionRaidRepository.findUnionRaidsByGuildId` → `RaidsResponse` |
+| GET | `/api/guilds/{guildId}/members?query=&limit=` | 同上 | `GuildMemberService.findGuildMembers` → `GuildMembersResponse`（`members[].userId` は文字列、`truncated`。query ≤100 文字は trim 前に検査、limit 1〜100 既定 100。400 / 404 `GuildNotFound` / 503 `GuildMembersUnavailable` / 500） |
 | GET | `/api/raids/{raidId}` | 同上 | レイド + 参加者 + 3凸報告 → `RaidDetailResponse`（無ければ 404） |
 
 - パスの型が合わないと 400、その他の例外は 500（`ErrorResponse`）。

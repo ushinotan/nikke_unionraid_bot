@@ -44,6 +44,13 @@ class InternalApiTokenFilterIntegrationTest(
     }
 
     @Test
+    fun `トークン無しのメンバー一覧リクエストは401`() {
+        mockMvc.perform(get("/api/guilds/70094001/members"))
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
+    }
+
+    @Test
     fun `誤ったトークンの api リクエストは401`() {
         mockMvc.perform(get("/api/guilds").header(InternalApiTokenFilter.HEADER_NAME, "wrong"))
             .andExpect(status().isUnauthorized)

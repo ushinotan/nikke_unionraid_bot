@@ -68,6 +68,10 @@ Bot をサーバーへ招待する際は、スコープに `bot` と `applicatio
 
 `メッセージ履歴を読む` が無い場合、報告後の Embed 更新やレイド終了時のボタン無効化が行われません（ログに warn が出力されます）。
 
+### Privileged Gateway Intents
+
+メンバー一覧 API（`GET /api/guilds/{guildId}/members`）のため、Developer Portal の `Bot` タブで **`Server Members Intent`**（`GUILD_MEMBERS`）を ON にする必要があります（OFF のままだと bot が起動できません）。既存の Bot の再招待は不要です。参加サーバーが 100 を超える場合は、Discord による Privileged Intent の審査（認証）が必要です。
+
 ## よく使うコマンド
 
 ### コンテナの停止
