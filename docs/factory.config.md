@@ -96,6 +96,9 @@ dev:
   doc_sync_order:  after_self_test
   retries:         3
   commit: { by: doc_sync, push: mr }   # confirmed — DEV opens a PR to develop at the end
+
+models:                         # omitted roles use the plugin defaults (CONTRACT.md "Models per role")
+  dev.tech_lead: opus
 ---
 
 # Project notes
