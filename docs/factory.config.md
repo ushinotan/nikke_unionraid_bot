@@ -23,8 +23,8 @@ git:
   base_branch: origin/develop   # origin/HEAD → develop; all PRs target develop
   dev_base:    origin/develop   # same as base_branch (develop → master only for releases)
   protected:   [develop, master]
-  branch_prefix: TBD            # suggestion: { story: 'feat/', bug: 'fix/' } — existing branches use claude/*, chore/*, dependabot/* (no issue-based convention)
-  commit_format: '<type><gitmoji>(<scope>): <summary in Japanese>'   # e.g. "feat✨(web): ...", "fix🐛(web): ...", "chore🔒(ci): ..." (git log)
+  branch_prefix: { story: 'feature/', bug: 'bugfix/' }   # confirmed — matches .github/PULL_REQUEST_TEMPLATE/{feature,bugfix}.md
+  commit_format: '{type}{gitmoji}({scope}): {message}'   # message in Japanese; e.g. "feat✨(web): ...", "fix🐛(web): ...", "chore🔒(ci): ..." (git log)
   remote: origin
 
 workspace:
@@ -55,7 +55,7 @@ env:
   api_url: http://localhost:8080   # docker-compose.yml bot (127.0.0.1 only, X-Internal-Api-Token required under /api)
 
 docker:
-  compose:   docker compose
+  compose:   docker-compose.yml   # used as `docker compose -f <file>`
   ensure_up: true               # confirmed — needs a .env with a real DISCORD_TOKEN and INTERNAL_API_TOKEN
   run:       'set -a && . ./.env && set +a && cd kotlin && ./gradlew test --no-daemon'   # backend; loads POSTGRES_* from .env (app default password is empty) and uses the compose DB (init.sql applied by the bot container)
   run_frontend: 'cd web && npm test'
@@ -84,7 +84,10 @@ docs_map:
 
 product:
   domain: "Discord bot + web dashboard for managing NIKKE Union Raid participation, 3T reports and rankings"
-  personas:    TBD              # e.g. guild members, privileged users (guild admins) — confirm
+  personas:                     # confirmed
+    - "ギルドメンバー: Discord で 3凸報告し、Web で自分やギルドの進み具合を見る"
+    - "特権ユーザー: サーバーのオーナー・管理者。レイドの作成・終了、順位の登録、代理登録をする（lib/permissions.ts の isPrivileged）"
+    - "ボットの導入者: 自分のギルドにボットを入れて運用を始める"
   competitors: []
   compliance:  []
 
@@ -92,7 +95,7 @@ dev:
   developer_split: true         # backend (kotlin) and frontend (web) are separate apps
   doc_sync_order:  after_self_test
   retries:         3
-  commit: { by: doc_sync, push: TBD }   # suggestion: mr (PR to develop) — confirm
+  commit: { by: doc_sync, push: mr }   # confirmed — DEV opens a PR to develop at the end
 ---
 
 # Project notes
