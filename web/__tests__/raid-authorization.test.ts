@@ -9,20 +9,19 @@ import {
   SELF,
   mockBackend,
   outsider,
+  otherMember,
   ownerMember,
-  privilegedMember as privileged,
+  privilegedMember,
   raid,
-  selfMember as general,
+  selfMember,
   type BackendMock,
 } from "./helpers/raid-edit-fixtures";
 
 describe("requireRaidEditPermission", () => {
   let backend: BackendMock;
-  let fetchedUrls: string[];
 
   beforeEach(() => {
     backend = mockBackend();
-    fetchedUrls = backend.fetchedUrls;
   });
 
   afterEach(() => {
@@ -54,27 +53,27 @@ describe("requireRaidEditPermission", () => {
   describe("共通", () => {
     it("未ログインなら 401 で、バックエンドを呼ばない", async () => {
       assert.strictEqual(await statusOf({}, { kind: "privileged" }), 401);
-      assert.strictEqual(fetchedUrls.length, 0);
+      assert.strictEqual(backend.fetchedUrls.length, 0);
     });
 
     it("raidId が不正なら 400 で、バックエンドを呼ばない", async () => {
-      assert.strictEqual(await statusOf(privileged, { kind: "privileged" }, "../1"), 400);
-      assert.strictEqual(fetchedUrls.length, 0);
+      assert.strictEqual(await statusOf(privilegedMember, { kind: "privileged" }, "../1"), 400);
+      assert.strictEqual(backend.fetchedUrls.length, 0);
     });
 
     it("レイドが存在しなければバックエンドの 404 を返す", async () => {
       backend.setRaid(null);
-      assert.strictEqual(await statusOf(privileged, { kind: "privileged" }), 404);
+      assert.strictEqual(await statusOf(privilegedMember, { kind: "privileged" }), 404);
     });
 
     it("ギルド ID はバックエンドから取得したレイドのものを使う", async () => {
       // 所属外ギルドのオーナーでも、レイドが別ギルドなら拒否される
       assert.strictEqual(await statusOf(outsider, { kind: "privileged" }), 403);
-      assert.ok(fetchedUrls[0].endsWith("/api/raids/1"));
+      assert.ok(backend.fetchedUrls[0].endsWith("/api/raids/1"));
     });
 
     it("許可されたらセッションの userId とレイドを返す", async () => {
-      const result = await requireRaidEditPermission(privileged, "1", { kind: "privileged" }, NOW);
+      const result = await requireRaidEditPermission(privilegedMember, "1", { kind: "privileged" }, NOW);
       assert.ok(result.ok);
       assert.strictEqual(result.userId, SELF);
       assert.strictEqual(result.raid.guildId, GUILD_ID);
@@ -85,7 +84,7 @@ describe("requireRaidEditPermission", () => {
     const req = { kind: "privileged" } as const;
 
     it("特権ユーザーは許可", async () => {
-      assert.strictEqual(await statusOf(privileged, req), 200);
+      assert.strictEqual(await statusOf(privilegedMember, req), 200);
     });
 
     it("オーナーは許可", async () => {
@@ -94,11 +93,11 @@ describe("requireRaidEditPermission", () => {
 
     it("特権ユーザーは終了済みレイドでも許可", async () => {
       backend.setRaid(raid({ finishedAt: "2026-11-02T00:00:00Z" }));
-      assert.strictEqual(await statusOf(privileged, req), 200);
+      assert.strictEqual(await statusOf(privilegedMember, req), 200);
     });
 
     it("一般メンバーは 403", async () => {
-      assert.strictEqual(await statusOf(general, req), 403);
+      assert.strictEqual(await statusOf(selfMember, req), 403);
     });
 
     it("所属していないギルドのユーザーは 403", async () => {
@@ -108,22 +107,22 @@ describe("requireRaidEditPermission", () => {
 
   describe("参加者・3T 報告の操作", () => {
     it("本人は許可", async () => {
-      assert.strictEqual(await statusOf(general, { kind: "participant", targetUserId: SELF }), 200);
+      assert.strictEqual(await statusOf(selfMember, { kind: "participant", targetUserId: SELF }), 200);
     });
 
     it("本人でも終了済みレイドは 403", async () => {
       backend.setRaid(raid({ finishedAt: "2026-11-02T00:00:00Z" }));
-      assert.strictEqual(await statusOf(general, { kind: "participant", targetUserId: SELF }), 403);
+      assert.strictEqual(await statusOf(selfMember, { kind: "participant", targetUserId: SELF }), 403);
     });
 
     it("一般メンバーが他人を操作すると 403", async () => {
-      assert.strictEqual(await statusOf(general, { kind: "participant", targetUserId: OTHER }), 403);
+      assert.strictEqual(await statusOf(otherMember, { kind: "participant", targetUserId: SELF }), 403);
     });
 
     it("特権ユーザーは他人も操作できる（終了済みも可）", async () => {
-      assert.strictEqual(await statusOf(privileged, { kind: "participant", targetUserId: OTHER }), 200);
+      assert.strictEqual(await statusOf(privilegedMember, { kind: "participant", targetUserId: OTHER }), 200);
       backend.setRaid(raid({ finishedAt: "2026-11-02T00:00:00Z" }));
-      assert.strictEqual(await statusOf(privileged, { kind: "participant", targetUserId: OTHER }), 200);
+      assert.strictEqual(await statusOf(privilegedMember, { kind: "participant", targetUserId: OTHER }), 200);
     });
 
     it("所属していないギルドのユーザーは本人分でも 403", async () => {
@@ -133,7 +132,7 @@ describe("requireRaidEditPermission", () => {
 
   describe("権限情報の有効期限", () => {
     it("期限切れの特権ユーザーが特権操作をすると 403 で error が REAUTH_REQUIRED", async () => {
-      assert.deepStrictEqual(await errorOf(privileged, { kind: "privileged" }, EXPIRED), {
+      assert.deepStrictEqual(await errorOf(privilegedMember, { kind: "privileged" }, EXPIRED), {
         status: 403,
         error: "REAUTH_REQUIRED",
       });
@@ -141,13 +140,13 @@ describe("requireRaidEditPermission", () => {
 
     it("期限切れの特権ユーザーが他人の参加者を操作すると 403 で error が REAUTH_REQUIRED", async () => {
       assert.deepStrictEqual(
-        await errorOf(privileged, { kind: "participant", targetUserId: OTHER }, EXPIRED),
+        await errorOf(privilegedMember, { kind: "participant", targetUserId: OTHER }, EXPIRED),
         { status: 403, error: "REAUTH_REQUIRED" }
       );
     });
 
     it("loggedInAt が無い特権ユーザーが特権操作をすると 403 で error が REAUTH_REQUIRED", async () => {
-      const legacy: RaidEditSession = { ...privileged, loggedInAt: undefined };
+      const legacy: RaidEditSession = { ...privilegedMember, loggedInAt: undefined };
       assert.deepStrictEqual(await errorOf(legacy, { kind: "privileged" }), {
         status: 403,
         error: "REAUTH_REQUIRED",
@@ -156,13 +155,13 @@ describe("requireRaidEditPermission", () => {
 
     it("期限切れでも本人の進行中レイドの操作は 200", async () => {
       assert.strictEqual(
-        await statusOf(general, { kind: "participant", targetUserId: SELF }, "1", EXPIRED),
+        await statusOf(selfMember, { kind: "participant", targetUserId: SELF }, "1", EXPIRED),
         200
       );
     });
 
     it("期限内の一般メンバーが特権操作をすると 403 で error が FORBIDDEN", async () => {
-      assert.deepStrictEqual(await errorOf(general, { kind: "privileged" }), {
+      assert.deepStrictEqual(await errorOf(selfMember, { kind: "privileged" }), {
         status: 403,
         error: "FORBIDDEN",
       });
@@ -171,7 +170,7 @@ describe("requireRaidEditPermission", () => {
     it("期限切れの特権ユーザーが終了済みレイドの本人分を操作すると 403 で error が REAUTH_REQUIRED", async () => {
       backend.setRaid(raid({ finishedAt: "2026-11-02T00:00:00Z" }));
       assert.deepStrictEqual(
-        await errorOf(privileged, { kind: "participant", targetUserId: SELF }, EXPIRED),
+        await errorOf(privilegedMember, { kind: "participant", targetUserId: SELF }, EXPIRED),
         { status: 403, error: "REAUTH_REQUIRED" }
       );
     });
@@ -180,13 +179,13 @@ describe("requireRaidEditPermission", () => {
       // 期限切れの間は特権ユーザーかどうか分からないので、一般メンバーにも再ログインを求める
       backend.setRaid(raid({ finishedAt: "2026-11-02T00:00:00Z" }));
       assert.deepStrictEqual(
-        await errorOf(general, { kind: "participant", targetUserId: SELF }, EXPIRED),
+        await errorOf(selfMember, { kind: "participant", targetUserId: SELF }, EXPIRED),
         { status: 403, error: "REAUTH_REQUIRED" }
       );
     });
 
     it("期限切れの一般メンバーが特権操作をすると 403 で error が REAUTH_REQUIRED", async () => {
-      assert.deepStrictEqual(await errorOf(general, { kind: "privileged" }, EXPIRED), {
+      assert.deepStrictEqual(await errorOf(selfMember, { kind: "privileged" }, EXPIRED), {
         status: 403,
         error: "REAUTH_REQUIRED",
       });
@@ -195,7 +194,7 @@ describe("requireRaidEditPermission", () => {
     it("期限内の一般メンバーが終了済みレイドの本人分を操作すると 403 で error が FORBIDDEN", async () => {
       backend.setRaid(raid({ finishedAt: "2026-11-02T00:00:00Z" }));
       assert.deepStrictEqual(
-        await errorOf(general, { kind: "participant", targetUserId: SELF }),
+        await errorOf(selfMember, { kind: "participant", targetUserId: SELF }),
         { status: 403, error: "FORBIDDEN" }
       );
     });

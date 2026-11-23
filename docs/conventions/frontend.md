@@ -40,7 +40,8 @@ Next.js 16（App Router）+ React 19 + TypeScript（strict）+ Tailwind CSS 4、
 - **必須**: バックエンド呼び出しは `try` で囲み、失敗は `handleBackendError(error)` で返す。
 - **必須**: エラーレスポンスは `{ error: "UPPER_SNAKE_CASE", message: "..." }` の形にする（バックエンドと同じ）。
 - **必須**: 書き込みを伴うルートは、バックエンドへ転送する前に `requireRaidEditPermission` を呼ぶ。`ok: false` ならその `response` をそのまま返す。
-- **推奨**: テストしやすいよう、`route.ts` は薄くし、本体は session を引数に取る関数に切り出す。
+- **必須**: 書き込みハンドラーは `export async function POST(...)` の形で書き、`requireRaidEditPermission` の呼び出しと `ok` の確認はそのハンドラーの中に置く（`write-route-guard.test.ts` がハンドラー本体を検査する）。`export const POST` や `export { handler as POST }`、再 export は使わない。
+- **推奨**: テストしやすいよう、権限確認の後の処理（バックエンドへの転送など）は、確認済みの結果を引数に取る関数に切り出す。権限確認そのものは切り出さない。
 - **必須**: 権限判定に使う値（ギルド ID、レコードの持ち主）はバックエンドから取り直したものを使う。リクエストの body やクエリの値をそのまま信用しない（詳しくは `lib/raid-authorization.ts` のコメント）。
 - **必須**: 画面でボタンを隠すのは補助にすぎない。防御はサーバー側で行う。
 - **必須**: リダイレクト先や Cookie の Secure 判定に使う自サイトの origin は `lib/origin.ts`（`getPublicOrigin` / `getConfiguredOrigin`）から取る。`Host` ヘッダーなどリクエストの値をそのまま使わない。
