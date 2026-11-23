@@ -96,9 +96,15 @@ export type BackendMock = {
   restore(): void;
 };
 
-const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+/** 書き込みとして扱う HTTP メソッド。write-route-guard.test.ts の検査対象と共通 */
+export const WRITE_METHODS = ["POST", "PUT", "PATCH", "DELETE"] as const;
+const isWrite = (method: string) => (WRITE_METHODS as readonly string[]).includes(method);
+
+/** ボディを持てないステータス。new Response() に body を渡すと例外になる */
+const NULL_BODY_STATUSES = new Set([204, 205, 304]);
 
 function jsonResponse({ status = 200, body = {} }: MockResponse): Response {
+  if (NULL_BODY_STATUSES.has(status)) return new Response(null, { status });
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
@@ -128,7 +134,7 @@ export function mockBackend(initialRaid: BackendRaid = raid()): BackendMock {
     const path = new URL(target, "http://backend.test").pathname;
     fetchedUrls.push(target);
 
-    if (WRITE_METHODS.has(method)) {
+    if (isWrite(method)) {
       const rawBody = init?.body ?? (request ? await request.clone().text() : null);
       writes.push({ url: target, method, body: rawBody == null ? null : String(rawBody) });
     }
@@ -136,9 +142,9 @@ export function mockBackend(initialRaid: BackendRaid = raid()): BackendMock {
     const override = overrides.get(`${method} ${path}`);
     if (override) return jsonResponse(override);
 
-    if (WRITE_METHODS.has(method)) return jsonResponse({});
+    if (isWrite(method)) return jsonResponse({});
 
-    const raidMatch = method === "GET" && path.match(/^\/api\/raids\/(\d+)$/);
+    const raidMatch = method === "GET" && path.match(/^\/api\/raids\/(\d+)\/?$/);
     if (raidMatch) {
       if (!current || String(current.id) !== raidMatch[1]) {
         return jsonResponse({ status: 404, body: { error: "NOT_FOUND", message: "Raid not found" } });
