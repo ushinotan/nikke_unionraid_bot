@@ -45,9 +45,12 @@ class UnionRaidEventListenerQaTest {
         ) {
             override fun reportThreeTurn(
                 raidId: Int, userId: Long, username: String, difficulty: Difficulty, now: java.time.OffsetDateTime,
+                allowFinished: Boolean,
             ) = report()
 
-            override fun cancelThreeTurnReports(raidId: Int, userId: Long, difficulties: Set<Difficulty>) = cancel()
+            override fun cancelThreeTurnReports(
+                raidId: Int, userId: Long, difficulties: Set<Difficulty>, allowFinished: Boolean,
+            ) = cancel()
         }
 
     private fun listener(service: RaidDomainService) = UnionRaidEventListener(

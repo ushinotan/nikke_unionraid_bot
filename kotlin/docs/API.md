@@ -2,7 +2,7 @@
 
 ## 概要
 
-Spring Boot で実装された読み取り専用の REST API。
+Spring Boot で実装された REST API（読み取り＋参加者・3T 報告の書き込み）。
 Next.js BFF からの内部呼び出しを想定している。
 
 ## ⚠️ セキュリティ / 認証に関する重要な注意事項
@@ -13,6 +13,7 @@ Next.js BFF からの内部呼び出しを想定している。
 - **想定用途**: Next.js BFF または信頼されたネットワーク内からのアクセスのみ
 - **内部トークン認証**: `/api` 配下は `X-Internal-Api-Token` ヘッダーが環境変数 `INTERNAL_API_TOKEN` と一致する場合のみ許可します（不一致・ヘッダー無しは `401`）
 - **fail-closed**: Backend 側に `INTERNAL_API_TOKEN` が未設定の場合、`/api` 配下は全リクエストを `401` で拒否します（`/health` は対象外）
+- **認可（書き込み API）**: bot が確認するのは `X-Internal-Api-Token` だけ。呼び出し元ユーザーの権限や、`userId` が操作者本人かどうかは確認しない。BFF が `checkParticipantEdit`（`web/lib/permissions.ts`）で権限を判定し、`userId` はセッションから取ること（代理登録は #94 のメンバー一覧から選ばせる）
 - **ユーザー認証**: Discord OAuth によるユーザー認証・ギルド単位の認可は Next.js BFF が担当します（[issue #42](https://github.com/ushinotan/nikke_unionraid_bot/issues/42)）
 
 ### 推奨される構成
@@ -234,6 +235,66 @@ bot が参加しているギルドのメンバー一覧を取得する（bot / s
 
 ---
 
+## 書き込みエンドポイント
+
+共通の挙動:
+
+- 認可は BFF の責務（上記「認可（書き込み API）」参照）。bot はトークンしか見ない。
+- 入力検証（400）はレイド存在確認（404）より先に行う。存在しない `raidId` でも不正な入力なら 400。
+- ボディは JSON オブジェクト。未知のフィールド・型違い（`"100"`、`1.5` など）は 400、`Content-Type` が JSON でなければ 415。
+- `userId` はボディでは文字列（数字 1〜20 桁、1 以上の 64bit）、パスでは 1 以上の整数。`username` は trim 後 1〜100 文字、制御文字不可。`score` は 0 以上の Int。
+- 終了済みレイドも API から書き込める（可否の判断は BFF）。
+- Web からの操作は Discord の Embed を更新しない（次に誰かが Discord から報告したときに作り直される）。
+- エラーは `{ "error", "message" }`（400 `BAD_REQUEST` / 404 `NOT_FOUND` / 409 `CONFLICT` / 500）。
+
+### 5. 参加者の登録
+
+**POST** `/api/raids/{raidId}/participants`
+
+ボディ: `{ "userId": "123456789012345678", "username": "名前", "score": 0 }`
+
+- `201`: 登録した参加者（`id`, `userId`, `username`, `score`, `joinedAt`）
+- `400`: 入力不正 / `404`: レイドが無い / `409`: 既に参加者（何も変更しない）
+
+### 6. 参加者のスコア更新
+
+**PATCH** `/api/raids/{raidId}/participants/{userId}`
+
+ボディ: `{ "score": 100 }`
+
+- スコアは絶対値での上書き（last-write-wins）。`username` と `joinedAt` は変えない。
+- `200`: 更新後の参加者 / `400` / `404`: レイドまたは参加者が無い
+
+### 7. 参加の取り消し
+
+**DELETE** `/api/raids/{raidId}/participants/{userId}`
+
+参加者の行と全難易度の 3T 報告を削除する。
+
+- `200`: `{ "participantRemoved": true, "removedReportCount": 2 }`
+- `400` / `404`: レイドが無い、または参加者の行も報告も無い
+
+### 8. 3T 報告の記録
+
+**POST** `/api/raids/{raidId}/reports`
+
+ボディ: `{ "userId": "123456789012345678", "username": "名前", "difficulty": "normal" }`（`difficulty` は `normal` | `hard`）
+
+未参加なら score 0 で参加者にも登録する。既存参加者の `username`・`score`・`joinedAt` は変えない。
+
+- `200`: `{ "alreadyReported": false, "participantRegistered": true }`（報告済みなら `alreadyReported: true`）
+- `400` / `404`: レイドが無い
+
+### 9. 3T 報告の取り消し
+
+**DELETE** `/api/raids/{raidId}/reports/{userId}/{difficulty}`
+
+- 最後の 3T 報告を取り消すと参加者も削除される（手動登録・スコアも消える）。レスポンスの `participantRemoved` で判別する。
+- `200`: `{ "cancelledDifficulties": ["normal"], "participantRemoved": false }`
+- `400` / `404`: レイドが無い、またはその難易度の報告が無い
+
+---
+
 ## エラーレスポンス形式
 
 予期しないエラーが発生した場合は、以下の形式でエラー情報が返される。
@@ -305,4 +366,4 @@ console.log(data.raids[0].guildId); // "123456789012345678" (文字列)
 - **内部向け API として設計** (Next.js BFF または信頼されたネットワークからの呼び出しのみ)
 - **公開 Web アクセスは禁止**: このエンドポイントを直接インターネットに公開しないでください
 - BFF → Backend 間は `X-Internal-Api-Token` ヘッダーによる共有シークレット認証（定数時間比較）
-- Discord bot の既存機能には影響を与えない読み取り専用 API
+- 書き込み API は `RaidDomainService` 経由（レイド行を `FOR UPDATE` でロックしてから更新）。リクエストボディの検証は `controller/RaidWriteRequests.kt`

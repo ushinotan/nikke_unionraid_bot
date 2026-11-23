@@ -3,17 +3,19 @@
 パッケージのルートは `kotlin/src/main/kotlin/gg/nikke/raid/bot/`。
 
 ## ドメインサービス
-`service/RaidDomainService.kt`（`@Service`）。Discord リスナーとスケジューラーから呼ばれる。
+`service/RaidDomainService.kt`（`@Service`）。Discord リスナー・スケジューラー・`RaidApiController`（Web の BFF 経由）から呼ばれる。
 
 | メソッド | 内容 |
 |---|---|
 | `createRaid` | 期間 1 時間以上、進行中レイドが無いことを確認して作成 |
 | `finishRaid` | 順位かパーセンテージ（どちらか一方、範囲チェックあり）を記録して終了 |
-| `reportThreeTurn` | `@Transactional`。レイド行をロックし、3凸報告を保存して、未参加なら score 0 で自動参加（`insertParticipantIfAbsent`。既存参加者の `username`・`score`・`joined_at` は変えない）。`ThreeTurnReportResult(alreadyReported, participantRegistered)` |
+| `reportThreeTurn` | `@Transactional`。`allowFinished=true`（API のみ）で終了済みレイドも可。レイド行をロックし、3凸報告を保存して、未参加なら score 0 で自動参加（`insertParticipantIfAbsent`。既存参加者の `username`・`score`・`joined_at` は変えない）。`ThreeTurnReportResult(alreadyReported, participantRegistered)` |
 | `ensureRaidActive` | レイドが存在し、終了していないことを確認 |
 | `hasReported` / `findReportedDifficulties` | 報告済みの難易度を調べる |
-| `cancelThreeTurnReports` | `@Transactional`。終了済みレイドは不可。実際に報告済みの難易度だけ削除し、取り消し後に `is_3t=1` の報告が 0 件で、かつ実際に取り消した場合のみ参加者も削除（手動登録・スコアも消える）。`ThreeTurnCancelResult(cancelled, participantRemoved)` |
+| `cancelThreeTurnReports` | `@Transactional`。終了済みレイドは不可（`allowFinished=true` の API 経由なら可）。実際に報告済みの難易度だけ削除し、取り消し後に `is_3t=1` の報告が 0 件で、かつ実際に取り消した場合のみ参加者も削除（手動登録・スコアも消える）。`ThreeTurnCancelResult(cancelled, participantRemoved)` |
 | `cancelParticipation` | `@Transactional`。参加者行と全難易度の報告を削除（冪等）。終了済みかどうかは判定しない。`ParticipationCancelResult(participantRemoved, removedReportCount)` |
+| `registerParticipant` | `@Transactional`。レイド行をロックし `insertParticipantIfAbsent`。既存なら `ParticipantAlreadyExists`（変更なし）。終了済みかは判定しない |
+| `updateParticipantScore` | `@Transactional`。スコアだけ更新（`username`・`joinedAt` は不変）。参加者なしは `ParticipantNotFound` |
 | `aggregateRaidResults` | 終了時の集計（`RaidAggregation`） |
 
 結果型は `service/ThreeTurnResults.kt`。
@@ -24,9 +26,10 @@
 
 ### #91 Web 側への引き継ぎ
 - BFF は `cancelParticipation` を呼ぶ前に「本人か特権ユーザーか」と「終了済みレイドの扱い」を必ず確認する（サービス側は判定しない）。
-- `insertOrUpdateParticipant` は呼び出し元が無く、ガード付き。手動参加・スコア更新には、ロック付きの `@Transactional` メソッドを `RaidDomainService` に追加して使うこと。
+- 手動参加・スコア更新は `registerParticipant` / `updateParticipantScore` を使う（`insertOrUpdateParticipant` は呼び出し元が無くガード付き）。
+- 書き込み API の認可（`checkParticipantEdit`、`userId` はセッション由来）は BFF の責務。詳細は `kotlin/docs/API.md`。
 
-エラーは `service/RaidDomainError.kt`: `GuildNotFound`、`GuildMembersUnavailable`（メンバー一覧用）、`DurationTooShort`、`ActiveRaidAlreadyExists`、`RankingAndPercentageBothSpecified`、`RaidNotFound`、`RaidAlreadyFinished`、`NoDifficultySelected`、`RankingOutOfRange`、`PercentageOutOfRange`。
+エラーは `service/RaidDomainError.kt`: `GuildNotFound`、`GuildMembersUnavailable`（メンバー一覧用）、`DurationTooShort`、`ActiveRaidAlreadyExists`、`RankingAndPercentageBothSpecified`、`RaidNotFound`、`ParticipantNotFound`、`ParticipantAlreadyExists`、`ThreeTurnReportNotFound`、`RaidAlreadyFinished`、`NoDifficultySelected`、`RankingOutOfRange`、`PercentageOutOfRange`。
 
 ## ギルドメンバー一覧
 - `service/GuildMemberService.kt`（`@Service`）: `findGuildMembers(guildId, query, limit)`。bot / system 除外、名前（ニックネーム・グローバル名・ユーザー名）の部分一致（trim・小文字化）、`displayName` + `userId` で整列、`limit` で切り `truncated` を返す。

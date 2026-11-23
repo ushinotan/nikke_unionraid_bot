@@ -6,7 +6,9 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestConstructor
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder
@@ -46,6 +48,18 @@ class InternalApiTokenFilterIntegrationTest(
     @Test
     fun `トークン無しのメンバー一覧リクエストは401`() {
         mockMvc.perform(get("/api/guilds/70094001/members"))
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
+    }
+
+    @Test
+    fun `トークン無しの書き込みリクエストは401`() {
+        mockMvc.perform(
+            post("/api/raids/70093201/reports")
+                .contentType("application/json")
+                .content("""{"userId":"1","username":"u","difficulty":"normal"}"""),
+        ).andExpect(status().isUnauthorized)
+        mockMvc.perform(delete("/api/raids/70093201/participants/1"))
             .andExpect(status().isUnauthorized)
             .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
     }

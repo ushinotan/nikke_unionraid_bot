@@ -4,6 +4,9 @@ import gg.nikke.raid.bot.entity.RaidParticipant
 import gg.nikke.raid.bot.entity.RaidReport
 import gg.nikke.raid.bot.entity.UnionRaid
 import gg.nikke.raid.bot.service.GuildMember
+import gg.nikke.raid.bot.service.ParticipationCancelResult
+import gg.nikke.raid.bot.service.ThreeTurnCancelResult
+import gg.nikke.raid.bot.service.ThreeTurnReportResult
 
 /**
  * UnionRaid エンティティを RaidSummaryDto に変換する拡張関数
@@ -52,4 +55,28 @@ fun GuildMember.toDto(): GuildMemberDto = GuildMemberDto(
     userId = this.userId.toString(),
     displayName = this.displayName,
     avatarUrl = this.avatarUrl
+)
+
+/**
+ * ThreeTurnReportResult を ThreeTurnReportResponse に変換する拡張関数
+ */
+fun ThreeTurnReportResult.toDto(): ThreeTurnReportResponse = ThreeTurnReportResponse(
+    alreadyReported = this.alreadyReported,
+    participantRegistered = this.participantRegistered
+)
+
+/**
+ * ThreeTurnCancelResult を ThreeTurnCancelResponse に変換する拡張関数（難易度は value の文字列）
+ */
+fun ThreeTurnCancelResult.toDto(): ThreeTurnCancelResponse = ThreeTurnCancelResponse(
+    cancelledDifficulties = this.cancelled.map { it.value },
+    participantRemoved = this.participantRemoved
+)
+
+/**
+ * ParticipationCancelResult を ParticipationCancelResponse に変換する拡張関数
+ */
+fun ParticipationCancelResult.toDto(): ParticipationCancelResponse = ParticipationCancelResponse(
+    participantRemoved = this.participantRemoved,
+    removedReportCount = this.removedReportCount
 )

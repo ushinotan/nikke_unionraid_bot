@@ -125,6 +125,20 @@ open class RaidDomainServiceTransactionTest(
     }
 
     @Test
+    fun `外側のトランザクションなし_プロキシ経由の参加登録とスコア更新がコミットされる`() {
+        val raid = createActiveRaid(70_093_901L)
+        val userId = 93_900_001L
+
+        raidDomainService.registerParticipant(raid.id, userId, "user", 100).getOrThrow()
+        raidDomainService.updateParticipantScore(raid.id, userId, 777).getOrThrow()
+
+        // 外側のトランザクションが無いので、ここで読めるのはコミット済みの結果
+        val participant = raidParticipantRepository.findParticipantByRaidIdAndUserId(raid.id, userId)
+        assertEquals(777, participant?.score)
+        assertEquals("user", participant?.username)
+    }
+
+    @Test
     fun `直列化_最後の報告の取り消しがロック中なら別難易度の報告は待たされコミット後に両立する`() {
         val raid = createActiveRaid(70_092_902L)
         val userId = 92_900_002L
@@ -175,10 +189,17 @@ open class RaidDomainServiceTransactionTest(
         assertThrows(IllegalStateException::class.java) {
             direct.cancelParticipation(raid.id, userId)
         }
+        assertThrows(IllegalStateException::class.java) {
+            direct.registerParticipant(raid.id, 92_900_013L, "other", 10)
+        }
+        assertThrows(IllegalStateException::class.java) {
+            direct.updateParticipantScore(raid.id, userId, 10)
+        }
 
         assertNull(raidReportRepository.findRaidReport(raid.id, 92_900_004L, Difficulty.NORMAL.value))
         assertNotNull(raidReportRepository.findRaidReport(raid.id, userId, Difficulty.NORMAL.value))
         assertEquals(listOf(userId), raidParticipantRepository.findParticipantsByRaidId(raid.id).map { it.userId })
+        assertEquals(0, raidParticipantRepository.findParticipantByRaidIdAndUserId(raid.id, userId)?.score)
     }
 
     @Test

@@ -97,4 +97,45 @@ class RaidParticipantRepository(
 
         return database.runQuery(query)
     }
+
+    /**
+     * 指定したレイド・ユーザーの参加者を 1 件取得する。
+     *
+     * @param raidId レイド ID
+     * @param userId ユーザー ID
+     * @return 参加者。参加者でなければ `null`
+     */
+    fun findParticipantByRaidIdAndUserId(raidId: Int, userId: Long): RaidParticipant? {
+        val query = QueryDsl.from(raidParticipantTable)
+            .where {
+                raidParticipantTable.raidId eq raidId
+                raidParticipantTable.userId eq userId
+            }
+
+        return database.runQuery(query).firstOrNull()
+    }
+
+    /**
+     * 指定したレイド・ユーザーの参加者のスコアだけを更新する。`username` と `joined_at` は変更しない。
+     *
+     * @param raidId レイド ID
+     * @param userId ユーザー ID
+     * @param score 新しいスコア（0 以上。呼び出し側で検証済みであること）
+     * @return 更新された行数（参加者でなければ 0）
+     *
+     * **レイド行のロックを取ったトランザクションの中で呼ぶこと**（`RaidDomainService` 経由）。外から呼ぶと `IllegalStateException`。
+     */
+    fun updateParticipantScore(raidId: Int, userId: Long, score: Int): Long {
+        requireActiveTransaction("updateParticipantScore")
+        val query = QueryDsl.update(raidParticipantTable)
+            .set {
+                raidParticipantTable.score eq score
+            }
+            .where {
+                raidParticipantTable.raidId eq raidId
+                raidParticipantTable.userId eq userId
+            }
+
+        return database.runQuery(query)
+    }
 }
